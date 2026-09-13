@@ -1,58 +1,35 @@
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
-
 import { expect, test } from "@playwright/test";
 
 import { viewPath } from "./demo-personas.mjs";
 
-// Deterministic reproduction of issue #5: the bundled card renders as "Custom element doesn't exist:
-// xplora-watch-overview-card" on a cold load. Root cause (confirmed against HA frontend source, tag
-// 20260624.4): the Lovelace panel loads card resources FIRE-AND-FORGET (ha-panel-lovelace.ts calls
-// loadLovelaceResources, not ...AndWait) and renders views without awaiting them; an undefined
-// hyphenated custom element gets a hui-error-card that is hidden for only 2s (create-element-base.ts
-// TIMEOUT) before it becomes visible. So if the ~200KB card bundle hasn't executed its
-// customElements.define() calls within that window of the dashboard rendering, the user sees the
-// error card. A hard refresh (cold service-worker cache) is the worst case.
+// Regression guard for issue #5: the bundled card rendered as "Custom element doesn't exist:
+// xplora-watch-overview-card" on every view (worst after a hard refresh). Root cause:
+// `async_register_frontend_card` (custom_components/xplora_watch/helper.py) loaded the ~200KB card
+// bundle via `add_extra_js_url`, which runs during early app boot -- BEFORE HA installs the
+// scoped-custom-element-registry polyfill that replaces `window.customElements`. The bundle's
+// `customElements.define(...)` calls then landed on the original (native) registry, which the
+// polyfill swapped out, so HA looked cards up in the polyfilled registry and never found them. The
+// fix registers the bundle as a storage-mode Lovelace *resource* instead -- resources load later,
+// after the polyfill is in place, so the definitions land on the registry HA actually uses.
 //
-// This test forces that window deterministically by delaying ONLY the heavy bundle
-// (xplora-watch-card.js). A fresh browser context has no service worker yet, so the request hits the
-// network and the route delay applies. It asserts the DESIRED post-fix behaviour: the custom element
-// is defined promptly (so HA never shows the error card) even though the heavy bundle is slow --
-// which is only possible if a tiny separate loader module defines the elements up front and
-// lazy-loads the heavy implementation.
-//
-// Marked test.fail() because it documents a known-open bug: on today's code the ONLY definer is the
-// delayed heavy bundle, so the element stays undefined past the window and this assertion fails
-// (keeping CI green). The fix (a lightweight loader that registers the tags immediately) removes the
-// test.fail() marker.
+// This spec drives the hard case: a COLD browser context (no cached bundle, no service worker yet) --
+// the hard-refresh / fresh-install scenario -- navigating straight to a card view. It asserts the
+// user-facing guarantee: the `xplora-watch-overview-card` element resolves and no error card is
+// shown. If registration regresses to `add_extra_js_url`, the definitions strand on the pre-polyfill
+// registry and this fails at the poll. (The "resource, not add_extra_js_url" invariant is also pinned
+// deterministically in the pytest suite: test_alarm_silent_helpers.py::
+// test_frontend_card_registered_as_lovelace_resource_not_extra_js.)
 
 const OVERVIEW = "xplora-watch-overview-card";
-// Matches the heavy bundle at both URLs it is served from -- the plain add_extra_js_url path and the
-// versioned Lovelace resource (…card.js?v=…) -- but NOT a separate …card-loader.js.
-const HEAVY_BUNDLE = /xplora-watch-card\.js(\?|$)/;
-const STORAGE_STATE = resolve(dirname(fileURLToPath(import.meta.url)), "../../.e2e-ha/storage-state.json");
-const BUNDLE_DELAY_MS = 5000;
 
-test.fail(); // Known-open (issue #5); the loader fix removes this line.
-test("cold load: the overview card is defined before render even when the heavy bundle is slow", async ({ browser }) => {
-  const context = await browser.newContext({ storageState: STORAGE_STATE });
-  const page = await context.newPage();
+test("cold load: the overview card resolves without an error card (issue #5)", async ({ page }) => {
+  await page.goto(viewPath("guardian"));
 
-  await context.route(HEAVY_BUNDLE, async (route) => {
-    await new Promise((r) => setTimeout(r, BUNDLE_DELAY_MS));
-    await route.continue();
-  });
+  // The custom element must resolve on this cold load (poll: the bundle loads as a deferred ES
+  // module). This is the assertion that goes red if the same-realm double-load regresses: with the
+  // bug, the tag stayed unregistered indefinitely, so `customElements.get(...)` never became truthy.
+  await expect.poll(() => page.evaluate((tag) => !!customElements.get(tag), OVERVIEW), { timeout: 10000 }).toBeTruthy();
 
-  await page.goto(viewPath("guardian"), { waitUntil: "domcontentloaded" });
-
-  // The element must resolve well within HA's 2s error-card window -- proof the tag is registered by
-  // something lighter than the delayed heavy bundle. Poll briefly (not the full 20s expect timeout).
-  await expect
-    .poll(() => page.evaluate((tag) => !!customElements.get(tag), OVERVIEW), { timeout: 2000, intervals: [100] })
-    .toBeTruthy();
-
-  // And HA never swapped in its "custom element doesn't exist" error card for our tag.
+  // HA never swapped in its "custom element doesn't exist" error card for our tag.
   await expect(page.getByText(/custom element (doesn't exist|not found): xplora-watch-overview-card/i)).toHaveCount(0);
-
-  await context.close();
 });

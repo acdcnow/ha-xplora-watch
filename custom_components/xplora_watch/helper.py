@@ -66,15 +66,16 @@ def account_token(alias: str, display_name: str, user_id: str) -> str:
 
 
 async def async_register_frontend_card(hass: HomeAssistant) -> None:
-    """Serve and register the bundled custom Lovelace card as a frontend JS module (once).
+    """Serve the bundled custom Lovelace card and register it as a storage-mode Lovelace resource (once).
 
-    Registers a static path for `www/xplora-watch-card.js` and adds it as an extra module URL so
-    the card is available in dashboards without the user manually adding a Lovelace resource. The
+    Registers a static path for `www/xplora-watch-card.js` and, deferred to HA start, adds the bundle
+    as a Lovelace *resource* so the card is available in dashboards without the user adding one by
+    hand. It is deliberately NOT loaded via `add_extra_js_url` (see the body for why -- issue #5). The
     `DATA_FRONTEND_REGISTERED` flag makes this idempotent across config entries and reloads (the
     static-path registration would otherwise raise on the second call).
     """
-    from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.http import StaticPathConfig
+    from homeassistant.helpers.start import async_at_started
     from homeassistant.loader import async_get_integration
 
     domain_data = hass.data.setdefault(DOMAIN, {})
@@ -100,26 +101,31 @@ async def async_register_frontend_card(hass: HomeAssistant) -> None:
             version = "0"
         versioned_url = f"{FRONTEND_SCRIPT_URL}?v={version}"
         await hass.http.async_register_static_paths([StaticPathConfig(FRONTEND_SCRIPT_URL, card_path, False)])
-        # `add_extra_js_url` injects the bundle as a deferred ES module. It is NOT awaited before
-        # Lovelace renders, so on a cold load the dashboard can build its cards before the module's
-        # `customElements.define(...)` runs -> "Custom element doesn't exist" error cards that only a
-        # full reload clears. It still covers YAML-mode dashboards, so we keep it...
-        add_extra_js_url(hass, versioned_url)
-        # ...but ALSO register the bundle as a storage-mode Lovelace *resource*, which HA loads and
-        # awaits BEFORE rendering dashboards -- eliminating the race. Deferred to HA-start so the
-        # `lovelace` integration's resource collection is ready (and runs immediately if already
-        # started, e.g. when the integration is added at runtime). Best-effort: a no-op in YAML mode.
-        from homeassistant.helpers.start import async_at_started
 
+        # Register the card bundle ONLY as a storage-mode Lovelace *resource* -- deliberately NOT via
+        # `add_extra_js_url`.
+        #
+        # Why: HA installs the scoped-custom-element-registry polyfill, which REPLACES
+        # `window.customElements` with a fresh registry early in app boot. `add_extra_js_url` loads
+        # the bundle during that early boot, so its `customElements.define(...)` calls run against the
+        # ORIGINAL (native) registry -- which the polyfill then swaps out. HA looks cards up in the
+        # polyfilled registry and never finds ours, rendering "Custom element doesn't exist" on every
+        # view (worst after a hard refresh, but really on every render). Lovelace resources are loaded
+        # later, when the dashboard panel initialises -- after the polyfill is in place -- so the
+        # definitions land on the registry HA actually uses.
+        #
+        # Deferred to HA-start so the `lovelace` resource collection is ready (runs immediately if HA
+        # has already started, e.g. the integration was added at runtime). Best-effort: a no-op in
+        # YAML mode, where resources are user-managed.
         async def _register_resource(_hass: HomeAssistant) -> None:
             try:
                 await _register_lovelace_resource(_hass, versioned_url)
-            except Exception as err:  # noqa: BLE001 -- resource is an optimisation; never break startup
+            except Exception as err:  # noqa: BLE001 -- resource is best-effort; never break startup
                 _LOGGER.debug("Could not register Lovelace resource for the card (%s)", err)
 
         async_at_started(hass, _register_resource)
         domain_data[DATA_FRONTEND_REGISTERED] = True
-        _LOGGER.debug("Registered Xplora® Watch frontend card at %s", versioned_url)
+        _LOGGER.debug("Scheduled Xplora® Watch frontend card resource registration for %s", versioned_url)
     except Exception as err:  # noqa: BLE001 -- best-effort; card is optional, must not block setup
         _LOGGER.warning("Could not register Xplora® Watch frontend card (%s)", err)
 
@@ -127,9 +133,10 @@ async def async_register_frontend_card(hass: HomeAssistant) -> None:
 async def _register_lovelace_resource(hass: HomeAssistant, versioned_url: str) -> None:
     """Add (or version-update) the card bundle as a storage-mode Lovelace resource.
 
-    Resources are loaded before dashboards render, so this is what actually prevents the
-    "Custom element doesn't exist" flash. No-op when Lovelace runs in YAML mode (resources are
-    user-managed and the collection is read-only) or when the data isn't available.
+    Storage-mode resources are loaded by the dashboard panel after the scoped-custom-element-registry
+    polyfill is installed, so the bundle's `customElements.define(...)` calls land on the registry HA
+    actually uses. No-op when Lovelace runs in YAML mode (resources are user-managed and the
+    collection is read-only) or when the data isn't available yet.
     """
     lovelace = hass.data.get("lovelace")
     # Newer HA exposes a `LovelaceData` dataclass with `.resources`; older builds used a dict.

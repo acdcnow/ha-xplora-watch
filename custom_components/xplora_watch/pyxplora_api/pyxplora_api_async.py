@@ -244,6 +244,28 @@ class PyXploraApi(PyXplora):
             watchs.append({"ward": ward})
         self.watchs = watchs
 
+    async def reload_watch_list(self) -> None:
+        """Force a fresh `deviceList` fetch to repopulate `self.watchs`, bypassing the once-only gate.
+
+        `init()` loads the account watch list only when `self.watchs` is empty (a per-poll no-op
+        after the first), so a watch added to the account later never appears. The options flow
+        calls this before building the watch picker so a newly added watch is offered without a
+        fresh login (the ban driver) -- `deviceList` is the same cheap authenticated call every poll
+        already makes. Enumerate the refreshed list with `getAllWatchUserIDs` (not the `_wuid`-pinned
+        `getWatchUserIDs`, which stays the entity-scoping filter).
+        """
+        await self._load_watch_list()
+
+    def getAllWatchUserIDs(self) -> list[str]:  # noqa: N802 -- matches the camelCase client surface
+        """Every ward id on the account, independent of the `_wuid` selection filter.
+
+        `getWatchUserIDs` short-circuits to the pinned `_wuid` (the saved `CONF_WATCHES` subset) when
+        set -- correct for scoping entity creation, but it means it can never surface a watch the
+        user has not yet selected. The options-flow picker needs the full account list so a newly
+        added watch can be chosen, so it reads `self.watchs` directly here.
+        """
+        return [watch["ward"]["id"] for watch in self.watchs if watch.get("ward", {}).get("id")]
+
     async def setDevices(self, ids: str | list[str] | None = None, functions: frozenset[WatchFunction] = ALL_WATCH_FUNCTIONS) -> list[str]:
         if self.inter_error is not None:
             self._reset(

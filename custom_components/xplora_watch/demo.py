@@ -349,6 +349,10 @@ class DemoPyXploraApi(PyXploraApi):
         """Skip the real (network) existence check used by the config flow's `validate_input`."""
         return True
 
+    async def reload_watch_list(self, *args: Any, **kwargs: Any) -> None:
+        """No-op: the demo account's single watch is seeded in `init`; there is no server to refetch."""
+        return None
+
     async def setDevices(self, ids: str | list[str] | None = None, functions: frozenset[WatchFunction] = ALL_WATCH_FUNCTIONS) -> list[str]:
         """Always resolve to this account's single demo watch, ignoring the requested `ids`."""
         return await self._setDevices([self._profile.wuid], functions=functions)

@@ -179,6 +179,17 @@ SENSOR_CURRENT_SAFEZONE: Final = "current_safezone"
 # themselves live in attributes (bounded -- see below) and in a persistent Store (the full,
 # retained set). See `coordinator` (fetch/accumulate) and `sensor.XploraHistorySensor`.
 SENSOR_LOCATION_HISTORY: Final = "location_history"
+# Most-recent-call sensor (one per watch). State is the last call's timestamp (device_class
+# timestamp -- a non-PII value safe for long-term state history); the contact/direction/duration/
+# missed detail rides in attributes that are kept OUT of the recorder (ADR 0014).
+SENSOR_LAST_CALL: Final = "last_call"
+# Call-event / most-recent-call-sensor attribute keys (also the HA event payload keys).
+ATTR_CALL_DIRECTION: Final = "direction"
+ATTR_CALL_DURATION: Final = "duration"
+ATTR_CALL_MISSED: Final = "missed"
+ATTR_CALL_NAME: Final = "call_name"
+ATTR_CALL_NUMBER: Final = "call_number"
+ATTR_CALL_TIME: Final = "call_time"
 
 BINARY_SENSOR_CHARGING: Final = "charging"
 BINARY_SENSOR_SAFEZONE: Final = "safezone"

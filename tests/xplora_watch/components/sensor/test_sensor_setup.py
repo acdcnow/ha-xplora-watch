@@ -12,6 +12,7 @@ from custom_components.xplora_watch.const import (
     SENSOR_BATTERY,
     SENSOR_CURRENT_SAFEZONE,
     SENSOR_DISTANCE,
+    SENSOR_LAST_CALL,
     SENSOR_LAST_UPDATE,
     SENSOR_LOCATION_HISTORY,
     SENSOR_MESSAGE,
@@ -20,7 +21,13 @@ from custom_components.xplora_watch.const import (
     SENSOR_XCOIN,
 )
 from custom_components.xplora_watch.coordinator import XploraDataUpdateCoordinator
-from custom_components.xplora_watch.sensor import XploraHistorySensor, XploraListSensor, XploraSensor, async_setup_entry
+from custom_components.xplora_watch.sensor import (
+    XploraHistorySensor,
+    XploraLastCallSensor,
+    XploraListSensor,
+    XploraSensor,
+    async_setup_entry,
+)
 from tests.xplora_watch.fixtures.graphql_payloads import DEFAULT_WUID
 
 
@@ -45,11 +52,13 @@ async def test_async_setup_entry_creates_all_sensors(
 
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
-    # 7 value sensors (XploraSensor) + 2 list sensors (XploraListSensor) + 1 history sensor.
-    assert len(captured) == 10
+    # 7 value sensors (XploraSensor) + 2 list sensors + 1 history sensor + 1 most-recent-call sensor.
+    assert len(captured) == 11
     value_keys = {e.entity_description.key for e in captured if isinstance(e, XploraSensor)}
     list_keys = {e.entity_description.key for e in captured if isinstance(e, XploraListSensor)}
     history_keys = {e.entity_description.key for e in captured if isinstance(e, XploraHistorySensor)}
+    call_keys = {e.entity_description.key for e in captured if isinstance(e, XploraLastCallSensor)}
+    assert call_keys == {SENSOR_LAST_CALL}
     assert value_keys == {
         SENSOR_BATTERY,
         SENSOR_STEP_DAY,
@@ -92,6 +101,7 @@ async def test_only_battery_enabled_by_default(
         SENSOR_SILENTS,
         SENSOR_LOCATION_HISTORY,
         SENSOR_CURRENT_SAFEZONE,
+        SENSOR_LAST_CALL,
     }
 
 

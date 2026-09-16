@@ -866,6 +866,10 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         self.async_set_updated_data(self.data)
         return self.data
 
+    def last_call(self, wuid: str) -> dict[str, Any] | None:
+        """The most recent call event stashed for `wuid`, or None if none seen (ADR 0014)."""
+        return self._last_call.get(wuid)
+
     def _enabled_notification_categories(self) -> set[str]:
         """The option fields whose notification category is currently on (ADR 0016)."""
         opts = self._resolved

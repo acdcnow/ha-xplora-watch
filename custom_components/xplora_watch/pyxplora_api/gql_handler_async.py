@@ -13,7 +13,7 @@ from .const import ENDPOINT
 from .exception_classes import AUTH_TOKEN_EXPIRED_CODE, AuthError, HandlerException, LoginError, XploraProtocolError
 from .graphql_client import GraphqlClient
 from .handler_gql import HandlerGQL
-from .model import Chats, ChatsNew
+from .model import Chats, ChatsNew, Notifications
 from .status import EmailAndPhoneVerificationTypeV2, NormalStatus, UserContactType
 from .watch_commands import WatchCommand
 
@@ -294,6 +294,32 @@ class GQLHandler(HandlerGQL):
             return {}
         if asObject:
             return Chats.from_dict(res.get("data", {}))
+        return res.get("data", {})
+
+    async def notifications_a(
+        self, uid: str = "", offset: int = 0, limit: int = 20, asObject: bool = False
+    ) -> dict[str, Any] | Notifications:
+        """Fetch one page of the account notification feed (calls, SOS, power, low battery).
+
+        Read-only: `uid=""` is account-wide (all watches). The sibling `setReadAllNotifications`
+        mutation is deliberately never implemented -- it would clear the guardian's unread state as
+        a polling side effect; "new" is derived client-side from entry id/create (ADR 0015).
+
+        `asObject=True` parses into a typed `Notifications` (feed entries as `SimpleChat`); the
+        default returns the raw `data` dict, mirroring `chats_a`.
+        """
+        res: GqlResponse = await self.runAuthorizedGqlQuery_a(
+            gq.WATCH_Q.get("notificationsQ", ""),
+            {"uid": uid, "msgId": "", "offset": offset, "limit": limit},
+            "notifications",
+        )
+        errors = res.get("errors", None)
+        if errors:
+            _LOGGER.debug("notifications feed returned errors: %s", errors)
+        if errors or res.get("data", None) is None:
+            return Notifications.from_dict({}) if asObject else {}
+        if asObject:
+            return Notifications.from_dict(res.get("data", {}))
         return res.get("data", {})
 
     async def fetchChatImage_a(self, wuid: str, msgId: str) -> dict[str, Any]:

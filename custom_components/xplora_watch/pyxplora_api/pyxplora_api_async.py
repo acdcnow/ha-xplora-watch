@@ -16,7 +16,7 @@ import aiohttp
 from .const import ALL_WATCH_FUNCTIONS, MISSING_LOCATION_TM, WatchFunction
 from .exception_classes import Error, ErrorMSG, LoginError
 from .gql_handler_async import GQLHandler
-from .model import Chats, ChatsNew, Data, SimpleChat, SmallChat, SmallChatList, User
+from .model import Chats, ChatsNew, Data, Notifications, SimpleChat, SmallChat, SmallChatList, User
 from .pyxplora import PyXplora
 from .status import (
     Emoji,
@@ -593,6 +593,18 @@ class PyXploraApi(PyXplora):
         except Error as e:
             _LOGGER.error("Error getting unread chat message count: %s", e)
             return -1
+
+    async def getNotifications(self, uid: str = "", offset: int = 0, limit: int = 20) -> list[SimpleChat]:
+        """Fetch one page of the account notification feed (calls, SOS, power, low battery).
+
+        Read-only and account-wide (`uid=""` covers all watches). A single page, no auto-paging: the
+        caller derives "new" from a client-side high-water mark and never marks the feed read
+        (ADR 0015). Returns the parsed feed entries, or an empty list on an empty/error response.
+        """
+        result = await self._gql_handler.notifications_a(uid=uid, offset=offset, limit=limit, asObject=True)
+        if isinstance(result, Notifications) and result.notifications and result.notifications.list:
+            return result.notifications.list
+        return []
 
     async def getWatchChats(
         self, wuid: str, offset: int = 0, limit: int = 0, msgId: str = "", show_del_msg: bool = True, asObject: bool = False

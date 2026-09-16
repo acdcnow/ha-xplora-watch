@@ -15,6 +15,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_COUNTRY_CODE, CONF_EMAIL, CONF_PASSWORD, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
@@ -50,6 +51,7 @@ from .const import (
     CONF_USERLANG,
     CONF_WATCHES,
     DOMAIN,
+    EVENT_CALL,
     LAST_UPDATE_NO_RESPONSE,
     LAST_UPDATE_OK,
     LOC_HISTORY_ATTR_MAX_POINTS,
@@ -57,6 +59,7 @@ from .const import (
     LOC_HISTORY_FETCH_LIMIT,
     LOCATE_POLL_DELAYS,
     MAPS,
+    NOTIFICATIONS_PAGE_LIMIT,
     SCAN_INTERVAL_FUNCTIONS_WITH_POLL,
     SCAN_INTERVAL_OFF,
     SENSOR_ALARMS,
@@ -70,6 +73,7 @@ from .const import (
 from .demo import is_demo_account, make_controller
 from .geocoder import OpenCageGeocodeUA
 from .log import Log
+from .notifications import HighWater, plan_events
 from .pyxplora_api.const import ALL_WATCH_FUNCTIONS, DEFAULT_TIMEOUT, MISSING_LOCATION_TM, WatchFunction
 from .pyxplora_api.exception_classes import AuthError, Error, LoginError, RateLimitError
 from .pyxplora_api.exception_classes import ConnectionError as XploraConnectionError
@@ -181,6 +185,16 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         # store (not the session/functions blobs) so neither of those is reshaped.
         self._history_store: Store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}.history")
         self._loc_history: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        # Per-account notification-feed high-water mark (newest emitted entry's create seconds + id),
+        # persisted (HA `.storage`) so a restart does not replay the feed backlog as fresh events
+        # (ADR 0015). `None` until the first fetch baselines it (baseline-silent). Its own store so
+        # the session/functions/history blobs are never reshaped.
+        self._notifications_store: Store = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}.notifications")
+        self._notifications_mark: HighWater | None = None
+        # Most-recent-call payload per watch, keyed by wuid. Kept OUT of `self.data` because the poll
+        # rebuilds each watch's `self.data[wuid]` from a fixed-key literal (`get_data`), which would
+        # wipe a stash folded in there. The most-recent-call sensor reads this directly (ADR 0014).
+        self._last_call: dict[str, dict[str, Any]] = {}
         # Per-watch reverse-geocode cache: last (lat, lng) -> (location_name, licence). Reverse
         # geocoding is a third-party HTTP call per watch per refresh; a stationary watch echoes the
         # same fix every poll, so we skip the call when the fix is unchanged (see `get_map`).
@@ -254,6 +268,29 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         await self._restore_session()
         await self._restore_functions_fetch()
         await self._restore_loc_history()
+        await self._restore_notifications_mark()
+
+    async def _restore_notifications_mark(self) -> None:
+        """Load the persisted notification high-water mark, if any is stored.
+
+        A missing/corrupt blob leaves the mark `None`, so the next feed fetch baselines silently
+        (fires nothing) instead of replaying the backlog (ADR 0015).
+        """
+        try:
+            blob = await self._notifications_store.async_load()
+        except Exception as err:  # noqa: BLE001 -- never let a bad/corrupt store block setup
+            self._log.debug("Ignoring unreadable notifications mark store: %s", err)
+            return
+        if blob and isinstance(blob.get("create"), int) and isinstance(blob.get("ids"), list):
+            self._notifications_mark = HighWater(create=blob["create"], ids=frozenset(str(i) for i in blob["ids"]))
+            self._log.debug("Restored notification high-water mark")
+
+    async def _persist_notifications_mark(self) -> None:
+        """Persist the current notification high-water mark (a no-op-safe overwrite)."""
+        if self._notifications_mark is not None:
+            await self._notifications_store.async_save(
+                {"create": self._notifications_mark.create, "ids": sorted(self._notifications_mark.ids)}
+            )
 
     async def _restore_session(self) -> None:
         """Load a persisted token into the freshly built controller, if one is stored.
@@ -440,6 +477,10 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
             await self._history_store.async_remove()
         except Exception as err:  # noqa: BLE001 -- removal must succeed regardless of storage state
             self._log.debug("Failed to remove persisted location-history store (ignored): %s", err)
+        try:
+            await self._notifications_store.async_remove()
+        except Exception as err:  # noqa: BLE001 -- removal must succeed regardless of storage state
+            self._log.debug("Failed to remove persisted notifications mark store (ignored): %s", err)
 
     def _update_is_admin(self, wuids: list[str]) -> None:
         """Derive the per-watch admin flag from the already-fetched `deviceList` data.
@@ -818,8 +859,66 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
             self.data = watch_entry
         else:
             self.data.update(watch_entry)
+        # Fold the account-wide notification feed into the plain periodic poll only (not on-demand
+        # or per-watch refreshes), so it adds no extra requests beyond the ban-defense cadence.
+        if targets is None and not force_functions:
+            await self._process_notifications()
         self.async_set_updated_data(self.data)
         return self.data
+
+    def _enabled_notification_categories(self) -> set[str]:
+        """The option fields whose notification category is currently on (ADR 0016)."""
+        opts = self._resolved
+        return {name for name in ("notify_call", "notify_sos", "notify_power", "notify_low_power") if getattr(opts, name)}
+
+    async def _process_notifications(self) -> None:
+        """Fetch one page of the notification feed and fire per-category events for new entries.
+
+        Best-effort: the feed is secondary to calls/location, so any failure here (fetch, planning,
+        firing, or persistence) is logged and swallowed rather than failing the status poll. "New"
+        is derived from the persisted high-water mark; the first fetch baselines silently (ADR 0015).
+        Entries are routed to their watch device via `sender.id`; an entry whose sender maps to no
+        known device is skipped with a debug log (ADR 0014).
+        """
+        enabled = self._enabled_notification_categories()
+        if not enabled:
+            # Every category off: drop the mark so a later re-enable baselines silently instead of
+            # replaying the backlog that accumulated while off (ADR 0015/0016).
+            if self._notifications_mark is not None:
+                self._notifications_mark = None
+                try:
+                    await self._notifications_store.async_remove()
+                except Exception as err:  # noqa: BLE001 -- storage cleanup must never fail the poll
+                    self._log.debug("Failed to clear notifications mark (ignored): %s", err)
+            return
+        try:
+            feed = await self._with_recovery(lambda: self.controller.getNotifications(limit=NOTIFICATIONS_PAGE_LIMIT))
+            # On the first fetch (no stored mark) the planner returns no events -- baseline-silent --
+            # and only advances the mark, so the loop below is naturally a no-op then (ADR 0015).
+            result = plan_events(feed, self._notifications_mark, enabled)
+            if result.saw_only_new and len(feed) >= NOTIFICATIONS_PAGE_LIMIT:
+                self._log.warning(
+                    "Notification feed returned a full page of %d new entries; older overflow beyond this page is dropped",
+                    len(feed),
+                )
+
+            dev_reg = dr.async_get(self.hass)
+            for event in result.events:
+                device = dev_reg.async_get_device(identifiers={(DOMAIN, f"{self._entry.unique_id}_{event.wuid}")})
+                if device is None:
+                    self._log.debug("Skipping notification for unknown watch ...%s", event.wuid[-6:])
+                    continue
+                self.hass.bus.async_fire(event.event_type, {**event.data, "wuid": event.wuid, "device_id": device.id})
+                if event.event_type == EVENT_CALL:
+                    # Feed the most-recent-call sensor: events are oldest-first, so the newest call
+                    # wins. Held outside `self.data` so the poll's `get_data` rebuild can't wipe it.
+                    self._last_call[event.wuid] = event.data
+
+            if result.mark is not None and result.mark != self._notifications_mark:
+                self._notifications_mark = result.mark
+                await self._persist_notifications_mark()
+        except Exception as err:  # noqa: BLE001 -- the feed is secondary; never fail the poll over it
+            self._log.debug("Notification processing failed (ignored): %s", err)
 
     async def async_refresh_functions(self, targets: list[str] | None = None) -> dict[str, Any]:
         """On-demand refresh of the alarm/silent/safezone data.

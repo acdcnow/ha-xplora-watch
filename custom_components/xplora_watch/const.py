@@ -108,6 +108,18 @@ CONF_HOME_LATITUDE: Final = "home_latitude"
 CONF_HOME_LONGITUDE: Final = "home_longitude"
 CONF_HOME_RADIUS: Final = "home_radius"
 CONF_AUTO_MARK_READ: Final = "auto_mark_read"
+# Per-category opt-in toggles for the account notification feed (calls, SOS, power, low battery).
+# Gate what fires once polling is on; SOS defaults ON (safety), the rest OFF (PII/noise). See
+# ADR 0016. Enabling calls or SOS writes contact numbers/names + SOS GPS to the recorder via the
+# logbook line -- a documented trade, not a privacy guarantee.
+CONF_NOTIFY_CALL: Final = "notify_call"
+CONF_NOTIFY_SOS: Final = "notify_sos"
+CONF_NOTIFY_POWER: Final = "notify_power"
+CONF_NOTIFY_LOW_POWER: Final = "notify_low_power"
+# One page per poll, newest-first, no auto-paging (ADR 0015). >20 new entries between two polls is
+# implausible for a child's watch on the coarse cadence; the overflow is dropped with a warning
+# rather than paged deeper (every extra page is another request against a ban-sensitive account).
+NOTIFICATIONS_PAGE_LIMIT: Final = 20
 CONF_MAPS: Final = "maps"
 CONF_MESSAGE: Final = "message"
 CONF_OPENCAGE_APIKEY: Final = "opencage_apikey"
@@ -128,6 +140,12 @@ CONF_REFRESH_ON_CARD_RENDER: Final = "refresh_on_card_render"
 # ADR 0005. Set from the single seam `XploraBaseEntity.branded_object_id` and merged in by the base
 # `extra_state_attributes`, so every entity carries it.
 ATTR_XPLORA_ROLE: Final = "xplora_role"
+# HA bus event types fired per notification-feed category (ADR 0014). Direction/outcome are payload
+# values, never separate event types (the call_type mapping is inferred, ref:XW-020).
+EVENT_CALL: Final = f"{DOMAIN}_call"
+EVENT_SOS: Final = f"{DOMAIN}_sos"
+EVENT_POWER: Final = f"{DOMAIN}_power"
+EVENT_LOW_POWER: Final = f"{DOMAIN}_low_power"
 # When enabled, the integration automatically fetches the previous day's location track at 01:00
 # local time — only if the day's data is not already cached. Removes the need for a manual
 # automation calling `xplora_watch.fetch_history` daily.

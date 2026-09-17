@@ -900,6 +900,20 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
             # On the first fetch (no stored mark) the planner returns no events -- baseline-silent --
             # and only advances the mark, so the loop below is naturally a no-op then (ADR 0015).
             result = plan_events(feed, self._notifications_mark, enabled)
+            if self._log.isEnabledFor(logging.DEBUG):
+                # Types + counts only (never the PII payload): shows what the feed returned and how
+                # many entries were new, so "nothing fired" can be told apart from "nothing new".
+                type_counts: dict[str, int] = {}
+                for entry in feed:
+                    type_counts[entry.type or "?"] = type_counts.get(entry.type or "?", 0) + 1
+                self._log.debug(
+                    "notifications: fetched %d %s, mark.create=%s, enabled=%s -> %d new event(s)",
+                    len(feed),
+                    type_counts,
+                    self._notifications_mark.create if self._notifications_mark else None,
+                    sorted(enabled),
+                    len(result.events),
+                )
             if result.saw_only_new and len(feed) >= NOTIFICATIONS_PAGE_LIMIT:
                 self._log.warning(
                     "Notification feed returned a full page of %d new entries; older overflow beyond this page is dropped",
@@ -923,6 +937,19 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
                 await self._persist_notifications_mark()
         except Exception as err:  # noqa: BLE001 -- the feed is secondary; never fail the poll over it
             self._log.debug("Notification processing failed (ignored): %s", err)
+
+    async def async_refresh_notifications(self) -> None:
+        """On-demand, account-wide fetch + processing of the notification feed (one request).
+
+        Independent of the status poll, so the `refresh_notifications` service and the
+        `check_notifications` button can surface new calls/SOS/power/low-battery entries even with
+        polling off -- an explicit user/automation action, not a new automatic cadence (ADR 0015).
+        Best-effort inside `_process_notifications`; listeners are refreshed so the most-recent-call
+        sensor updates.
+        """
+        await self.init(aiohttp_client.async_get_clientsession(self.hass))
+        await self._process_notifications()
+        self.async_update_listeners()
 
     async def async_refresh_functions(self, targets: list[str] | None = None) -> dict[str, Any]:
         """On-demand refresh of the alarm/silent/safezone data.

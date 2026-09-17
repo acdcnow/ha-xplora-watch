@@ -35,6 +35,7 @@ API_KEY_MAPBOX: Final = "pk.eyJ1IjoieHBsb3JhdGVjaG5vbG9naWVzIiwiYSI6ImNrenpoYnFo
 
 ATTR_SERVICE_SEE: Final = "see"
 ATTR_SERVICE_REFRESH_FUNCTIONS: Final = "refresh_functions"
+ATTR_SERVICE_REFRESH_NOTIFICATIONS: Final = "refresh_notifications"
 # Fetch + cache one past day's location track (default: yesterday). Meant to be automated daily so HA
 # keeps an archive beyond the few days the watch's API still serves. `ATTR_SERVICE_DATE` overrides
 # the day (YYYY-MM-DD).
@@ -207,6 +208,10 @@ BUTTON_UPDATE: Final = "update"
 # (which refreshes location/battery via `see`), this is the only control that re-fetches alarms &
 # silent times, so it carries a descriptive name on the controls card.
 BUTTON_REFRESH_FUNCTIONS: Final = "refresh_functions"
+# `check_notifications` does an on-demand, account-wide fetch of the notification feed (calls, SOS,
+# power, low battery) -- the same effect as the `refresh_notifications` service. Lets the feature be
+# triggered with polling off, without adding any automatic cadence.
+BUTTON_CHECK_NOTIFICATIONS: Final = "check_notifications"
 
 # Entity description keys that belong to a watch's *Guardian* (`guardianType == "FIRST"`) only and
 # are not created for an account that is merely a *Contact* of the watch. A Contact is sent no

@@ -27,6 +27,35 @@ these as an **event** you can automate on, plus a **most-recent-call sensor** an
 There is **no live "ringing" state**: the feed is an after-the-fact log, so an event appears once the
 call is over, not while the phone is ringing.
 
+## Triggering a check (with polling off)
+
+The feed is checked on every normal poll — but polling is **off by default**. To check it on demand
+(and to drive it from your own automations) without turning polling on, use either:
+
+- the **`xplora_watch.refresh_notifications`** action (target a watch to pick the account), or
+- the per-watch **"Check notifications"** button (disabled by default — enable it on the device page).
+
+Both do a single account-wide fetch and fire an event for anything new. Example automation — check
+every 15 minutes only while someone's home:
+
+```yaml
+alias: Poll Xplora notifications while home
+trigger:
+  - platform: time_pattern
+    minutes: "/15"
+condition:
+  - condition: state
+    entity_id: zone.home
+    above: 0
+action:
+  - action: xplora_watch.refresh_notifications
+    target:
+      device_id: !input watch_device
+```
+
+This stays off Xplora's rate-limit radar: it only runs when you (or your automation) ask, and each
+run is one request.
+
 ## Categories and defaults
 
 | Category | Default | Event | Notes |

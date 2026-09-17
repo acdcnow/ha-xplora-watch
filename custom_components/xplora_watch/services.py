@@ -48,6 +48,7 @@ from .const import (
     ATTR_SERVICE_READ_MSG,
     ATTR_SERVICE_REBOOT,
     ATTR_SERVICE_REFRESH_FUNCTIONS,
+    ATTR_SERVICE_REFRESH_NOTIFICATIONS,
     ATTR_SERVICE_SEE,
     ATTR_SERVICE_SEND_MSG,
     ATTR_SERVICE_SET_ALARM_ENABLED,
@@ -118,6 +119,9 @@ BASE_SEE_SERVICE_SCHEMA = _target_schema()
 # On-demand refresh of alarms/silent-times/safe-zones (the "functions" data that has its own,
 # default-off poll interval).
 BASE_REFRESH_FUNCTIONS_SERVICE_SCHEMA = _target_schema()
+# On-demand, account-wide fetch of the notification feed (calls, SOS, power, low battery). The device
+# target selects the account; the fetch itself is account-wide (one request).
+BASE_REFRESH_NOTIFICATIONS_SERVICE_SCHEMA = _target_schema()
 # Fetch + cache one past day's location track (default: yesterday). `date` is an optional
 # "YYYY-MM-DD" override; intended to be automated daily so HA archives days beyond the watch's window.
 BASE_FETCH_HISTORY_SERVICE_SCHEMA = _target_schema({vol.Optional(ATTR_SERVICE_DATE): cv.string})
@@ -478,6 +482,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
     notify_service = XploraMessageService(hass, entry_id)
     see_service = XploraSeeService(hass, entry_id)
     refresh_functions_service = XploraRefreshFunctionsService(hass, entry_id)
+    refresh_notifications_service = XploraRefreshNotificationsService(hass, entry_id)
     fetch_history_service = XploraFetchHistoryService(hass, entry_id)
     alarm_service = XploraAlarmService(hass, entry_id)
     silent_service = XploraSilentService(hass, entry_id)
@@ -487,6 +492,9 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
 
     async def async_refresh_functions(service: ServiceCall) -> None:
         await refresh_functions_service.async_refresh_functions(kwargs=dict(service.data))
+
+    async def async_refresh_notifications(service: ServiceCall) -> None:
+        await refresh_notifications_service.async_refresh_notifications(kwargs=dict(service.data))
 
     async def async_fetch_history(service: ServiceCall) -> None:
         await fetch_history_service.async_fetch_history(kwargs=dict(service.data))
@@ -555,6 +563,9 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
     hass.services.async_register(
         DOMAIN, ATTR_SERVICE_REFRESH_FUNCTIONS, async_refresh_functions, schema=BASE_REFRESH_FUNCTIONS_SERVICE_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, ATTR_SERVICE_REFRESH_NOTIFICATIONS, async_refresh_notifications, schema=BASE_REFRESH_NOTIFICATIONS_SERVICE_SCHEMA
+    )
     hass.services.async_register(DOMAIN, ATTR_SERVICE_FETCH_HISTORY, async_fetch_history, schema=BASE_FETCH_HISTORY_SERVICE_SCHEMA)
     hass.services.async_register(DOMAIN, ATTR_SERVICE_CREATE_ALARM, async_create_alarm, schema=BASE_CREATE_ALARM_SERVICE_SCHEMA)
     hass.services.async_register(DOMAIN, ATTR_SERVICE_UPDATE_ALARM, async_update_alarm, schema=BASE_UPDATE_ALARM_SERVICE_SCHEMA)
@@ -593,6 +604,7 @@ def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_SEND_MSG)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_SEE)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_REFRESH_FUNCTIONS)
+    hass.services.async_remove(DOMAIN, ATTR_SERVICE_REFRESH_NOTIFICATIONS)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_CREATE_ALARM)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_UPDATE_ALARM)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_DELETE_ALARM)
@@ -767,6 +779,23 @@ class XploraRefreshFunctionsService(XploraService):
             await account.call("Refresh functions", None, lambda: coordinator.async_refresh_functions(account.wuids), recover=False)
 
         await self._fan_out(data, ATTR_SERVICE_REFRESH_FUNCTIONS, body)
+
+
+class XploraRefreshNotificationsService(XploraService):
+    """On-demand, account-wide fetch of the notification feed (calls, SOS, power, low battery)."""
+
+    async def async_refresh_notifications(self, **kwargs: Any) -> None:
+        """Fetch + process the feed once per targeted account, so new events fire with polling off."""
+        data = kwargs["kwargs"]
+
+        async def body(account: _Account) -> None:
+            coordinator = account.coordinator
+            account.log.debug("%s: refresh notifications feed", coordinator.controller.getUserName())
+            # Account-wide (one request), so called once per account rather than per watch.
+            # `async_refresh_notifications` recovers a stale token internally, so `recover=False`.
+            await account.call("Refresh notifications", None, coordinator.async_refresh_notifications, recover=False)
+
+        await self._fan_out(data, ATTR_SERVICE_REFRESH_NOTIFICATIONS, body)
 
 
 class XploraFetchHistoryService(XploraService):

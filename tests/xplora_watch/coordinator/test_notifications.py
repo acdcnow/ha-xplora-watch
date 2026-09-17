@@ -39,6 +39,10 @@ def _enable(coordinator: XploraDataUpdateCoordinator, **flags: bool) -> None:
     coordinator._resolved = resolve({"notify_call": False, "notify_sos": False, "notify_power": False, "notify_low_power": False, **flags})
 
 
+async def _noop_init(*_a: Any, **_k: Any) -> None:
+    """Stub the login/init so the on-demand refresh test stays network-free."""
+
+
 def _feed(coordinator: XploraDataUpdateCoordinator, entries: list[SimpleChat]) -> None:
     async def _fake(*_a: Any, **_k: Any) -> list[SimpleChat]:
         return entries
@@ -192,6 +196,29 @@ async def test_same_second_new_sibling_still_fires(coordinator: XploraDataUpdate
     await coordinator.hass.async_block_till_done()
     assert [e.data["id"] for e in events] == ["a2"]
     assert coordinator._notifications_mark == HighWater(create=1000, ids=frozenset({"a1", "a2"}))
+
+
+async def test_async_refresh_notifications_processes_and_notifies(
+    coordinator: XploraDataUpdateCoordinator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The on-demand refresh fetches + fires + updates listeners, independent of a status poll."""
+    _enable(coordinator, notify_call=True)
+    _register_device(coordinator.hass, coordinator)
+    coordinator.data = {DEFAULT_WUID: {}}
+    coordinator._notifications_mark = HighWater(create=100, ids=frozenset({"old"}))
+    events = async_capture_events(coordinator.hass, EVENT_CALL)
+    _feed(coordinator, [_entry("c", "CALL_LOG", 300, call_number="+49123")])
+
+    notified: list[int] = []
+    monkeypatch.setattr(coordinator, "async_update_listeners", lambda: notified.append(1))
+    monkeypatch.setattr(coordinator, "init", _noop_init)
+
+    await coordinator.async_refresh_notifications()
+    await coordinator.hass.async_block_till_done()
+
+    assert len(events) == 1
+    assert coordinator._last_call[DEFAULT_WUID]["call_number"] == "+49123"
+    assert notified  # entities were told to re-read (the last_call sensor)
 
 
 async def test_overflow_full_page_logs_warning(coordinator: XploraDataUpdateCoordinator, caplog: pytest.LogCaptureFixture) -> None:

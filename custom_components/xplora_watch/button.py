@@ -31,6 +31,7 @@ from .const import (
     ATTR_LAST_UPDATE_STATUS,
     ATTR_LAST_UPDATE_TIME,
     ATTR_WATCH,
+    BUTTON_CHECK_NOTIFICATIONS,
     BUTTON_REBOOT,
     BUTTON_REFRESH_FUNCTIONS,
     BUTTON_SHUTDOWN,
@@ -70,6 +71,15 @@ BUTTON_TYPES: tuple[ButtonEntityDescription, ...] = (
     ButtonEntityDescription(
         key=BUTTON_REFRESH_FUNCTIONS,
         icon="mdi:calendar-refresh",
+        entity_category=EntityCategory.CONFIG,
+        entity_registry_enabled_default=False,
+    ),
+    # On-demand, account-wide fetch of the notification feed (calls, SOS, power, low battery) -- the
+    # same effect as the `refresh_notifications` service. Not Guardian-gated: the feed is the
+    # account's own, not a per-watch control action.
+    ButtonEntityDescription(
+        key=BUTTON_CHECK_NOTIFICATIONS,
+        icon="mdi:bell-ring",
         entity_category=EntityCategory.CONFIG,
         entity_registry_enabled_default=False,
     ),
@@ -174,6 +184,18 @@ class XploraButton(XploraBaseEntity, ButtonEntity):
             self._log.debug("Refresh functions pressed for watch ...%s", self.watch_uid[25:])
             try:
                 await self.coordinator.async_refresh_functions([self.watch_uid])
+            except Exception as err:  # noqa: BLE001 -- record the failure for the UI, then surface it
+                self._record_update_error()
+                raise HomeAssistantError(f"Refresh failed: {err}") from err
+            return
+
+        # `check_notifications` does an account-wide fetch of the notification feed on demand (same
+        # effect as the `refresh_notifications` service), so new calls/SOS/power/low-battery surface
+        # with polling off.
+        if key == BUTTON_CHECK_NOTIFICATIONS:
+            self._log.debug("Check notifications pressed for watch ...%s", self.watch_uid[25:])
+            try:
+                await self.coordinator.async_refresh_notifications()
             except Exception as err:  # noqa: BLE001 -- record the failure for the UI, then surface it
                 self._record_update_error()
                 raise HomeAssistantError(f"Refresh failed: {err}") from err

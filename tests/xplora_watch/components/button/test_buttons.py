@@ -23,6 +23,7 @@ from custom_components.xplora_watch.button import (
     async_setup_entry,
 )
 from custom_components.xplora_watch.const import (
+    BUTTON_CHECK_NOTIFICATIONS,
     BUTTON_REBOOT,
     BUTTON_REFRESH_FUNCTIONS,
     BUTTON_SHUTDOWN,
@@ -76,8 +77,9 @@ async def test_setup_skips_guardian_only_buttons_for_a_contact(
     mock_config_entry_phone: MockConfigEntry,
     coordinator_with_data: XploraDataUpdateCoordinator,
 ) -> None:
-    """A watch the account is only a Contact of gets only the Update button; reboot, shutdown and
-    refresh-functions are Guardian-only control actions and are skipped (ref:XW-009)."""
+    """A watch the account is only a Contact of gets the non-control buttons (Update and Check
+    notifications); reboot, shutdown and refresh-functions are Guardian-only actions, skipped
+    (ref:XW-009). The notification feed is account-wide, not a control action, so it is not gated."""
     coordinator_with_data.is_admin = {DEFAULT_WUID: False}
     hass.data.setdefault(DOMAIN, {})[mock_config_entry_phone.entry_id] = coordinator_with_data
     captured, capture_entities = _capture()
@@ -85,7 +87,7 @@ async def test_setup_skips_guardian_only_buttons_for_a_contact(
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
     keys = {e.entity_description.key for e in captured}
-    assert keys == {BUTTON_UPDATE}
+    assert keys == {BUTTON_UPDATE, BUTTON_CHECK_NOTIFICATIONS}
 
 
 async def test_buttons_disabled_by_default(
@@ -115,6 +117,20 @@ async def test_press_update_refreshes_only_this_watch(
     await button.async_press()
 
     coordinator_with_data.async_update_xplora_data.assert_awaited_once_with([DEFAULT_WUID])
+
+
+async def test_press_check_notifications_refreshes_the_feed(
+    hass: HomeAssistant,
+    mock_config_entry_phone: MockConfigEntry,
+    coordinator_with_data: XploraDataUpdateCoordinator,
+) -> None:
+    """Pressing `check_notifications` triggers the account-wide notification-feed refresh."""
+    button = _make_button(hass, mock_config_entry_phone, coordinator_with_data, BUTTON_CHECK_NOTIFICATIONS)
+    coordinator_with_data.async_refresh_notifications = AsyncMock()
+
+    await button.async_press()
+
+    coordinator_with_data.async_refresh_notifications.assert_awaited_once_with()
 
 
 async def test_press_refresh_functions_refreshes_only_this_watch(

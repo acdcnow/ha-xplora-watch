@@ -296,3 +296,22 @@ async def test_demo_entry_sets_up_network_free_and_creates_its_watch_device(hass
     assert result is True  # setup completed offline
     device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, f"{email}_{wuid}")})
     assert device is not None  # the watch device the service `device_id` picker lists
+
+
+async def test_demo_account_serves_a_synthetic_notification_feed() -> None:
+    """The demo controller returns a network-free notification feed so the call/SOS/power/low-battery
+    surface can be exercised end to end without a real watch (ADR 0009). No real CALL_LOG was ever
+    captured, so the call entry is synthetic from the documented fields (ref:XW-020)."""
+    controller = await _demo_controller(DEMO_ACCOUNT_EMAIL)
+    feed = await controller.getNotifications(limit=20)
+
+    types = {entry.type for entry in feed}
+    assert {"CALL_LOG", "SOS", "POWER_ON", "LOW_POWER"} <= types
+    # Every entry routes to this account's watch via sender.id.
+    assert feed and all(entry.sender and entry.sender.id == DEMO_WUID for entry in feed)
+
+    call = next(entry for entry in feed if entry.type == "CALL_LOG")
+    assert call.id and call.create
+    assert call.data is not None
+    assert call.data.call_number and call.data.call_name
+    assert call.data.duration is not None and call.data.call_type in (1, 2)

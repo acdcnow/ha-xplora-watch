@@ -876,11 +876,25 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         return {name for name in ("notify_call", "notify_sos", "notify_power", "notify_low_power") if getattr(opts, name)}
 
     async def _process_notifications(self) -> None:
+        """Poll-path wrapper: run one notification cycle, best-effort.
+
+        The feed is secondary to calls/location, so any failure here (fetch, planning, firing, or
+        persistence) is logged and swallowed rather than failing the status poll. The on-demand path
+        (`async_refresh_notifications`) instead runs the cycle unwrapped, so an explicit user/service
+        action can report a real failure rather than a phantom success.
+        """
+        try:
+            await self._run_notifications_cycle()
+        except Exception as err:  # noqa: BLE001 -- the feed is secondary; never fail the poll over it
+            self._log.debug("Notification processing failed (ignored): %s", err)
+
+    async def _run_notifications_cycle(self) -> None:
         """Fetch one page of the notification feed and fire per-category events for new entries.
 
-        Best-effort: the feed is secondary to calls/location, so any failure here (fetch, planning,
-        firing, or persistence) is logged and swallowed rather than failing the status poll. "New"
-        is derived from the persisted high-water mark; the first fetch baselines silently (ADR 0015).
+        Raises on a fetch/planning/firing/persistence failure so an on-demand caller can surface it
+        (the poll path wraps this in `_process_notifications` and swallows). The exception is the
+        "all categories off" branch, whose mark cleanup is best-effort and never raises. "New" is
+        derived from the persisted high-water mark; the first fetch baselines silently (ADR 0015).
         Entries are routed to their watch device via `sender.id`; an entry whose sender maps to no
         known device is skipped with a debug log (ADR 0014).
         """
@@ -895,48 +909,45 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
                 except Exception as err:  # noqa: BLE001 -- storage cleanup must never fail the poll
                     self._log.debug("Failed to clear notifications mark (ignored): %s", err)
             return
-        try:
-            feed = await self._with_recovery(lambda: self.controller.getNotifications(limit=NOTIFICATIONS_PAGE_LIMIT))
-            # On the first fetch (no stored mark) the planner returns no events -- baseline-silent --
-            # and only advances the mark, so the loop below is naturally a no-op then (ADR 0015).
-            result = plan_events(feed, self._notifications_mark, enabled)
-            if self._log.isEnabledFor(logging.DEBUG):
-                # Types + counts only (never the PII payload): shows what the feed returned and how
-                # many entries were new, so "nothing fired" can be told apart from "nothing new".
-                type_counts: dict[str, int] = {}
-                for entry in feed:
-                    type_counts[entry.type or "?"] = type_counts.get(entry.type or "?", 0) + 1
-                self._log.debug(
-                    "notifications: fetched %d %s, mark.create=%s, enabled=%s -> %d new event(s)",
-                    len(feed),
-                    type_counts,
-                    self._notifications_mark.create if self._notifications_mark else None,
-                    sorted(enabled),
-                    len(result.events),
-                )
-            if result.saw_only_new and len(feed) >= NOTIFICATIONS_PAGE_LIMIT:
-                self._log.warning(
-                    "Notification feed returned a full page of %d new entries; older overflow beyond this page is dropped",
-                    len(feed),
-                )
+        feed = await self._with_recovery(lambda: self.controller.getNotifications(limit=NOTIFICATIONS_PAGE_LIMIT))
+        # On the first fetch (no stored mark) the planner returns no events -- baseline-silent --
+        # and only advances the mark, so the loop below is naturally a no-op then (ADR 0015).
+        result = plan_events(feed, self._notifications_mark, enabled)
+        if self._log.isEnabledFor(logging.DEBUG):
+            # Types + counts only (never the PII payload): shows what the feed returned and how
+            # many entries were new, so "nothing fired" can be told apart from "nothing new".
+            type_counts: dict[str, int] = {}
+            for entry in feed:
+                type_counts[entry.type or "?"] = type_counts.get(entry.type or "?", 0) + 1
+            self._log.debug(
+                "notifications: fetched %d %s, mark.create=%s, enabled=%s -> %d new event(s)",
+                len(feed),
+                type_counts,
+                self._notifications_mark.create if self._notifications_mark else None,
+                sorted(enabled),
+                len(result.events),
+            )
+        if result.saw_only_new and len(feed) >= NOTIFICATIONS_PAGE_LIMIT:
+            self._log.warning(
+                "Notification feed returned a full page of %d new entries; older overflow beyond this page is dropped",
+                len(feed),
+            )
 
-            dev_reg = dr.async_get(self.hass)
-            for event in result.events:
-                device = dev_reg.async_get_device(identifiers={(DOMAIN, f"{self._entry.unique_id}_{event.wuid}")})
-                if device is None:
-                    self._log.debug("Skipping notification for unknown watch ...%s", event.wuid[-6:])
-                    continue
-                self.hass.bus.async_fire(event.event_type, {**event.data, "wuid": event.wuid, "device_id": device.id})
-                if event.event_type == EVENT_CALL:
-                    # Feed the most-recent-call sensor: events are oldest-first, so the newest call
-                    # wins. Held outside `self.data` so the poll's `get_data` rebuild can't wipe it.
-                    self._last_call[event.wuid] = event.data
+        dev_reg = dr.async_get(self.hass)
+        for event in result.events:
+            device = dev_reg.async_get_device(identifiers={(DOMAIN, f"{self._entry.unique_id}_{event.wuid}")})
+            if device is None:
+                self._log.debug("Skipping notification for unknown watch ...%s", event.wuid[-6:])
+                continue
+            self.hass.bus.async_fire(event.event_type, {**event.data, "wuid": event.wuid, "device_id": device.id})
+            if event.event_type == EVENT_CALL:
+                # Feed the most-recent-call sensor: events are oldest-first, so the newest call
+                # wins. Held outside `self.data` so the poll's `get_data` rebuild can't wipe it.
+                self._last_call[event.wuid] = event.data
 
-            if result.mark is not None and result.mark != self._notifications_mark:
-                self._notifications_mark = result.mark
-                await self._persist_notifications_mark()
-        except Exception as err:  # noqa: BLE001 -- the feed is secondary; never fail the poll over it
-            self._log.debug("Notification processing failed (ignored): %s", err)
+        if result.mark is not None and result.mark != self._notifications_mark:
+            self._notifications_mark = result.mark
+            await self._persist_notifications_mark()
 
     async def async_refresh_notifications(self) -> None:
         """On-demand, account-wide fetch + processing of the notification feed (one request).
@@ -944,11 +955,12 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         Independent of the status poll, so the `refresh_notifications` service and the
         `check_notifications` button can surface new calls/SOS/power/low-battery entries even with
         polling off -- an explicit user/automation action, not a new automatic cadence (ADR 0015).
-        Best-effort inside `_process_notifications`; listeners are refreshed so the most-recent-call
-        sensor updates.
+        Runs the cycle unwrapped (unlike the swallowing poll path), so a fetch/planning failure
+        propagates to the button/service and is reported instead of a phantom success; listeners are
+        refreshed on success so the most-recent-call sensor updates.
         """
         await self.init(aiohttp_client.async_get_clientsession(self.hass))
-        await self._process_notifications()
+        await self._run_notifications_cycle()
         self.async_update_listeners()
 
     async def async_refresh_functions(self, targets: list[str] | None = None) -> dict[str, Any]:

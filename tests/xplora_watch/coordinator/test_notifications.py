@@ -221,6 +221,26 @@ async def test_async_refresh_notifications_processes_and_notifies(
     assert notified  # entities were told to re-read (the last_call sensor)
 
 
+async def test_async_refresh_notifications_surfaces_fetch_error(
+    coordinator: XploraDataUpdateCoordinator, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit on-demand refresh must fail loud: a fetch error propagates to the caller
+    (button/service) instead of being swallowed like the background poll (fail-loud on user actions).
+
+    Counterpart to test_fetch_error_does_not_raise, which pins the opposite for the poll path.
+    """
+    _enable(coordinator, notify_sos=True)
+    monkeypatch.setattr(coordinator, "init", _noop_init)
+
+    async def _boom(*_a: Any, **_k: Any) -> list[SimpleChat]:
+        raise RuntimeError("network down")
+
+    coordinator.controller.getNotifications = _boom  # type: ignore[method-assign]
+
+    with pytest.raises(RuntimeError, match="network down"):
+        await coordinator.async_refresh_notifications()
+
+
 async def test_overflow_full_page_logs_warning(coordinator: XploraDataUpdateCoordinator, caplog: pytest.LogCaptureFixture) -> None:
     _enable(coordinator, notify_sos=True)
     _register_device(coordinator.hass, coordinator)

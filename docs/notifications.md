@@ -44,13 +44,14 @@ trigger:
   - platform: time_pattern
     minutes: "/15"
 condition:
-  - condition: state
+  # zone.home holds the number of people home; > 0 means someone's in.
+  - condition: numeric_state
     entity_id: zone.home
     above: 0
 action:
   - action: xplora_watch.refresh_notifications
     target:
-      device_id: !input watch_device
+      device_id: <your watch device>   # the "Watch(es)" field: pick the watch's device
 ```
 
 This stays off Xplora's rate-limit radar: it only runs when you (or your automation) ask, and each

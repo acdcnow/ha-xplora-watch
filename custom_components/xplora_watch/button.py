@@ -196,8 +196,10 @@ class XploraButton(XploraBaseEntity, ButtonEntity):
             self._log.debug("Check notifications pressed for watch ...%s", self.watch_uid[25:])
             try:
                 await self.coordinator.async_refresh_notifications()
-            except Exception as err:  # noqa: BLE001 -- record the failure for the UI, then surface it
-                self._record_update_error()
+            except Exception as err:  # noqa: BLE001 -- surface the failure to the UI/automation
+                # No `_record_update_error()` here: the feed is account-wide, so a feed failure is
+                # not evidence that THIS watch's own status poll failed -- don't stamp its
+                # `last_update` status (that belongs to the update/refresh_functions buttons).
                 raise HomeAssistantError(f"Refresh failed: {err}") from err
             return
 

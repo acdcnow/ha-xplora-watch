@@ -23,12 +23,14 @@ from custom_components.xplora_watch.button import (
     async_setup_entry,
 )
 from custom_components.xplora_watch.const import (
+    ATTR_LAST_UPDATE_STATUS,
     BUTTON_CHECK_NOTIFICATIONS,
     BUTTON_REBOOT,
     BUTTON_REFRESH_FUNCTIONS,
     BUTTON_SHUTDOWN,
     BUTTON_UPDATE,
     DOMAIN,
+    LAST_UPDATE_ERROR,
 )
 from custom_components.xplora_watch.coordinator import XploraDataUpdateCoordinator
 from custom_components.xplora_watch.pyxplora_api.exception_classes import AuthError, RateLimitError
@@ -131,6 +133,23 @@ async def test_press_check_notifications_refreshes_the_feed(
     await button.async_press()
 
     coordinator_with_data.async_refresh_notifications.assert_awaited_once_with()
+
+
+async def test_press_check_notifications_failure_raises_but_does_not_mark_watch_stale(
+    hass: HomeAssistant,
+    mock_config_entry_phone: MockConfigEntry,
+    coordinator_with_data: XploraDataUpdateCoordinator,
+) -> None:
+    """A failed feed refresh surfaces as a HomeAssistantError (fail-loud, not a phantom success), but
+    must NOT stamp this watch's per-watch `last_update` status: the feed is account-wide, so a feed
+    failure is not evidence that this watch's own status poll failed (unlike update/refresh_functions)."""
+    button = _make_button(hass, mock_config_entry_phone, coordinator_with_data, BUTTON_CHECK_NOTIFICATIONS)
+    coordinator_with_data.async_refresh_notifications = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(HomeAssistantError):
+        await button.async_press()
+
+    assert coordinator_with_data.data[DEFAULT_WUID].get(ATTR_LAST_UPDATE_STATUS) != LAST_UPDATE_ERROR
 
 
 async def test_press_refresh_functions_refreshes_only_this_watch(

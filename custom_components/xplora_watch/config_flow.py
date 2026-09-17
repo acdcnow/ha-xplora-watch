@@ -52,6 +52,10 @@ from .const import (
     CONF_HOME_SAFEZONE,
     CONF_MAPS,
     CONF_MESSAGE,
+    CONF_NOTIFY_CALL,
+    CONF_NOTIFY_LOW_POWER,
+    CONF_NOTIFY_POWER,
+    CONF_NOTIFY_SOS,
     CONF_OPENCAGE_APIKEY,
     CONF_PHONENUMBER,
     CONF_REFRESH_ON_CARD_RENDER,
@@ -380,6 +384,13 @@ class XploraOptionsFlowHandler(OptionsFlowWithConfigEntry):
                 ),
                 vol.Required(CONF_REMOVE_MESSAGE, default=_options.get(CONF_REMOVE_MESSAGE, False)): BooleanSelector(),
                 vol.Required(CONF_AUTO_MARK_READ, default=_options.get(CONF_AUTO_MARK_READ, False)): BooleanSelector(),
+                # Per-category notification toggles (ADR 0016). SOS defaults ON (safety); calls/power/
+                # low-battery default OFF. Enabling calls or SOS writes contact numbers/names + SOS GPS
+                # to the recorder via the logbook line -- the PII warning is in the options strings.
+                vol.Required(CONF_NOTIFY_SOS, default=_options.get(CONF_NOTIFY_SOS, True)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_CALL, default=_options.get(CONF_NOTIFY_CALL, False)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_POWER, default=_options.get(CONF_NOTIFY_POWER, False)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_LOW_POWER, default=_options.get(CONF_NOTIFY_LOW_POWER, False)): BooleanSelector(),
                 vol.Required(
                     CONF_REFRESH_ON_CARD_RENDER,
                     default=_options.get(CONF_REFRESH_ON_CARD_RENDER, DEFAULT_REFRESH_ON_CARD_RENDER),

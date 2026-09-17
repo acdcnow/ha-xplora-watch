@@ -102,6 +102,10 @@
           "maps": "Cartes",
           "message": "Nombre de messages",
           "opencage_apikey": "Clé API OpenCage",
+          "notify_sos": "Événements d'alerte SOS",
+          "notify_call": "Événements d'activité d'appel",
+          "notify_power": "Événements de marche/arrêt",
+          "notify_low_power": "Événements de batterie faible",
           "refresh_on_card_render": "Actualiser les données à l'affichage des cartes du tableau de bord",
           "remove_message": "afficher les messages supprimés ?",
           "scan_interval": "Intervalle de mise à jour (Désactivé arrête l'interrogation)",
@@ -115,6 +119,10 @@
           "scan_interval_functions": "Fréquence à laquelle les alarmes, plages silencieuses et zones sûres (qui changent rarement) sont récupérées. Chacune nécessite une requête distincte par montre, c'est pourquoi elles sont Désactivées par défaut afin de limiter le trafic. Choisissez « À chaque interrogation » pour les actualiser à chaque mise à jour, ou récupérez-les à la demande via le service xplora_watch.refresh_functions ou en touchant les tuiles de comptage sur la carte.",
           "auto_fetch_history": "Lorsque activé, l'intégration récupère l'historique de position de la veille à 01:00 (heure locale) — uniquement si les données de ce jour ne sont pas déjà en cache. Pratique pour constituer une archive de positions sans créer d'automatisation utilisant xplora_watch.fetch_history.",
           "refresh_on_card_render": "Lorsque activé, les cartes personnalisées du tableau de bord demandent des données fraîches dès leur affichage (alarmes et plages silencieuses, position et messages). Désactivé par défaut afin de limiter le trafic ; si plusieurs cartes d'une vue affichent la même montre, chaque jeu de données n'est actualisé qu'une seule fois.",
+          "notify_sos": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre envoie un SOS. Activé par défaut. Ne se déclenche que lorsque l'interrogation est active. La ligne de journal enregistre la position du SOS (latitude/longitude) dans la base de données de l'enregistreur (recorder) de Home Assistant — un compromis délibéré pour la visibilité, pas une garantie de confidentialité.",
+          "notify_call": "Déclenche un événement Home Assistant et écrit une ligne de journal pour chaque appel (entrant, sortant, manqué). Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active. La ligne de journal enregistre le numéro de téléphone et le nom du contact dans la base de données de l'enregistreur (recorder) de Home Assistant — un compromis délibéré pour la visibilité, pas une garantie de confidentialité. Laissez désactivé si vous ne voulez pas stocker les numéros de contact dans votre base de données.",
+          "notify_power": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre s'allume ou s'éteint. Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active.",
+          "notify_low_power": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre signale une batterie faible. Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active.",
           "account_alias": "Renomme l'appareil montre de ce compte au prochain rechargement (par ex. « Dana Watch (Maman) »). Les identifiants d'entités existants conservent leur nom d'origine, afin que les automatisations et tableaux de bord qui les référencent continuent de fonctionner."
         },
         "title": "paramètres supplémentaires pour HA Xplora® Watch"

@@ -103,6 +103,10 @@
           "language": "Language",
           "maps": "Maps",
           "message": "Number of Messages",
+          "notify_sos": "SOS alert events",
+          "notify_call": "Call activity events",
+          "notify_power": "Power on/off events",
+          "notify_low_power": "Low-battery events",
           "opencage_apikey": "OpenCage API KEY",
           "refresh_on_card_render": "Refresh data when dashboard cards are shown",
           "remove_message": "show deleted messages?",
@@ -116,7 +120,11 @@
           "scan_interval": "How often Home Assistant polls the watches for battery, location and status. Off (the default) disables automatic polling — updates then come only from the xplora_watch.see service or pressing the Update button.",
           "scan_interval_functions": "How often the rarely-changing alarms, silent times and safe-zone definitions are fetched. Each needs a separate request per watch, so this is Off by default to minimise traffic. Choose 'With every poll' to refresh them on each update, or fetch them on demand with the xplora_watch.refresh_functions service or by tapping the count tiles on the card.",
           "auto_fetch_history": "When on, the integration fetches the previous day's location track at 01:00 local time — only if that day's data is not already cached. Useful if you want a growing location archive without setting up your own automation calling xplora_watch.fetch_history daily.",
-          "refresh_on_card_render": "When on, the custom dashboard cards request fresh data as soon as they are shown (alarms and silent times, location, and chat). Off by default to minimise API traffic; when several cards in one view show the same watch, each data set is refreshed only once."
+          "refresh_on_card_render": "When on, the custom dashboard cards request fresh data as soon as they are shown (alarms and silent times, location, and chat). Off by default to minimise API traffic; when several cards in one view show the same watch, each data set is refreshed only once.",
+          "notify_sos": "Fire a Home Assistant event, and write a logbook line, when the watch sends an SOS. On by default. Only fires while polling is on. The logbook line records the SOS location (latitude/longitude) into the Home Assistant recorder database — a deliberate trade for visibility, not a privacy guarantee.",
+          "notify_call": "Fire a Home Assistant event, and write a logbook line, for each call (incoming, outgoing, missed). Off by default. Only fires while polling is on. The logbook line records the contact's phone number and name into the Home Assistant recorder database — a deliberate trade for visibility, not a privacy guarantee. Leave off if you do not want contact numbers stored in your database.",
+          "notify_power": "Fire a Home Assistant event, and write a logbook line, when the watch powers on or off. Off by default. Only fires while polling is on.",
+          "notify_low_power": "Fire a Home Assistant event, and write a logbook line, when the watch reports low battery. Off by default. Only fires while polling is on."
         },
         "title": "further settings for HA Xplora® Watch"
       }

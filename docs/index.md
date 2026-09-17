@@ -20,6 +20,7 @@ one page per feature area.
 - [Alarms & silent times](alarms-and-silent-times.md) — sensors, services, common automations
 - [Location history](location-history.md) — the history sensor, retention, and daily archiving
 - [Safe zones](safe-zones.md) — the safe-zone sensors and trackers
+- [Call & notification activity](notifications.md) — call/SOS/power/low-battery events, the most-recent-call sensor, logbook lines, and the recorder-PII trade-off
 - [Send a message](send-message.md) — notifying the watch from Home Assistant
 - [Voice, video & image messages](media.md) — how chat attachments are downloaded and cached
 - [Dashboard cards](dashboard-cards.md) — every bundled Lovelace card, with screenshots and YAML

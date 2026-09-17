@@ -102,6 +102,10 @@
           "maps": "Mapas",
           "message": "Número de mensajes",
           "opencage_apikey": "Clave API de OpenCage",
+          "notify_sos": "Eventos de alerta SOS",
+          "notify_call": "Eventos de actividad de llamadas",
+          "notify_power": "Eventos de encendido/apagado",
+          "notify_low_power": "Eventos de batería baja",
           "refresh_on_card_render": "Actualizar datos al mostrar las tarjetas del panel",
           "remove_message": "¿mostrar mensajes eliminados?",
           "scan_interval": "Intervalo de actualización (Desactivado detiene el sondeo)",
@@ -115,6 +119,10 @@
           "scan_interval_functions": "Con qué frecuencia se obtienen las alarmas, los tiempos de silencio y las zonas seguras, que rara vez cambian. Cada una requiere una petición por reloj, por lo que está Desactivado de forma predeterminada para minimizar el tráfico. Elige «En cada sondeo» para actualizarlas en cada actualización, u obtenlas cuando quieras con el servicio xplora_watch.refresh_functions o tocando las casillas de recuento en la tarjeta.",
           "auto_fetch_history": "Cuando está activado, la integración obtiene el historial de ubicaciones del día anterior a la 01:00 (hora local) — solo si los datos de ese día aún no están en caché. Útil para mantener un archivo de ubicaciones sin necesidad de configurar una automatización propia con xplora_watch.fetch_history.",
           "refresh_on_card_render": "Cuando está activado, las tarjetas personalizadas del panel solicitan datos actualizados en cuanto se muestran (alarmas y tiempos de silencio, ubicación y chat). Desactivado de forma predeterminada para minimizar el tráfico; si varias tarjetas de una vista muestran el mismo reloj, cada conjunto de datos se actualiza solo una vez.",
+          "notify_sos": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj envía un SOS. Activado de forma predeterminada. Solo se dispara mientras el sondeo está activo. La línea del registro guarda la ubicación del SOS (latitud/longitud) en la base de datos del grabador (recorder) de Home Assistant: una concesión deliberada a la visibilidad, no una garantía de privacidad.",
+          "notify_call": "Dispara un evento de Home Assistant y escribe una línea en el registro por cada llamada (entrante, saliente, perdida). Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo. La línea del registro guarda el número de teléfono y el nombre del contacto en la base de datos del grabador (recorder) de Home Assistant: una concesión deliberada a la visibilidad, no una garantía de privacidad. Déjalo desactivado si no quieres almacenar números de contacto en tu base de datos.",
+          "notify_power": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj se enciende o se apaga. Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo.",
+          "notify_low_power": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj informa de batería baja. Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo.",
           "account_alias": "Renombra el dispositivo del reloj de esta cuenta en la próxima recarga (p. ej. «Dana Watch (Mamá)»). Los identificadores de entidad existentes conservan su nombre original, por lo que las automatizaciones y los paneles que los referencian siguen funcionando."
         },
         "title": "configuraciones adicionales para HA Xplora® Watch"

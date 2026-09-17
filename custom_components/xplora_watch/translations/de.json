@@ -102,6 +102,10 @@
           "maps": "Maps",
           "message": "Anzahl der Nachrichten",
           "opencage_apikey": "OpenCage API KEY",
+          "notify_sos": "SOS-Alarm-Ereignisse",
+          "notify_call": "Anrufaktivitäts-Ereignisse",
+          "notify_power": "Ein-/Ausschalt-Ereignisse",
+          "notify_low_power": "Ereignisse bei niedrigem Akkustand",
           "refresh_on_card_render": "Daten beim Anzeigen der Dashboard-Karten aktualisieren",
           "remove_message": "gelöschte Nachrichten anzeigen?",
           "scan_interval": "Aktualisierungsintervall (Aus deaktiviert das Abrufen)",
@@ -115,6 +119,10 @@
           "scan_interval_functions": "Wie oft die sich selten ändernden Alarme, Stille Zeiten und Sicherheitszonen abgerufen werden. Jede erfordert eine eigene Anfrage pro Uhr, daher standardmäßig Aus, um den Datenverkehr zu minimieren. Wähle „Bei jedem Abruf“, um sie bei jeder Aktualisierung zu laden, oder rufe sie bei Bedarf über den Dienst xplora_watch.refresh_functions oder durch Tippen auf die Zähler-Kacheln der Karte ab.",
           "auto_fetch_history": "Wenn aktiviert, ruft die Integration den Standortverlauf des Vortags täglich um 01:00 Uhr lokaler Zeit ab — nur wenn die Daten für diesen Tag noch nicht im Cache vorhanden sind. Praktisch, wenn ein wachsendes Standortarchiv gewünscht wird, ohne dafür eine eigene Automatisierung mit xplora_watch.fetch_history einzurichten.",
           "refresh_on_card_render": "Wenn aktiviert, fordern die benutzerdefinierten Dashboard-Karten beim Anzeigen sofort frische Daten an (Alarme und Stille Zeiten, Standort und Chat). Standardmäßig Aus, um den Datenverkehr zu minimieren; zeigen mehrere Karten in einer Ansicht dieselbe Uhr, wird jeder Datensatz nur einmal aktualisiert.",
+          "notify_sos": "Löst ein Home-Assistant-Ereignis aus und schreibt eine Logbuchzeile, wenn die Uhr einen SOS-Alarm sendet. Standardmäßig aktiviert. Wird nur ausgelöst, während das Abrufen aktiv ist. Die Logbuchzeile speichert den SOS-Standort (Breiten-/Längengrad) in der Home-Assistant-Recorder-Datenbank – ein bewusster Kompromiss für die Sichtbarkeit, keine Datenschutzgarantie.",
+          "notify_call": "Löst ein Home-Assistant-Ereignis aus und schreibt eine Logbuchzeile für jeden Anruf (eingehend, ausgehend, verpasst). Standardmäßig deaktiviert. Wird nur ausgelöst, während das Abrufen aktiv ist. Die Logbuchzeile speichert die Telefonnummer und den Namen des Kontakts in der Home-Assistant-Recorder-Datenbank – ein bewusster Kompromiss für die Sichtbarkeit, keine Datenschutzgarantie. Lassen Sie diese Option deaktiviert, wenn Sie keine Kontaktnummern in Ihrer Datenbank speichern möchten.",
+          "notify_power": "Löst ein Home-Assistant-Ereignis aus und schreibt eine Logbuchzeile, wenn die Uhr ein- oder ausgeschaltet wird. Standardmäßig deaktiviert. Wird nur ausgelöst, während das Abrufen aktiv ist.",
+          "notify_low_power": "Löst ein Home-Assistant-Ereignis aus und schreibt eine Logbuchzeile, wenn die Uhr einen niedrigen Akkustand meldet. Standardmäßig deaktiviert. Wird nur ausgelöst, während das Abrufen aktiv ist.",
           "account_alias": "Benennt das Uhrengerät dieses Kontos beim nächsten Neuladen um (z. B. „Dana Watch (Mama)“). Vorhandene Entitäts-IDs behalten ihren ursprünglichen Namen, sodass darauf verweisende Automationen und Dashboards weiter funktionieren."
         },
         "title": "weitere Einstellungen für HA Xplora® Watch"

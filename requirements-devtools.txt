@@ -1,2 +1,5 @@
 pip-audit==2.10.0
-pip-tools==7.5.3
+# 7.6.1 picks up support for pip 26.2, which the locks pin via `--allow-unsafe`
+# (`pip._internal.utils.compat.stdlib_pkgs` was removed in pip 26.2, and 7.5.3 imports it -> the
+# pinned tool would stop working with its own lock file).
+pip-tools==7.6.1

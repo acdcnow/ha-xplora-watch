@@ -25,7 +25,7 @@ The first time Home Assistant starts on the new code:
 
 1. Back up your Home Assistant instance before upgrading, as you would for any integration update.
 2. If you added the original as a HACS custom repository (pointing at `Ludy87/xplora_watch`),
-   remove that custom repository and add this one (`distante/ha-xplora-watch`) instead — HACS
+   remove that custom repository and add this one (`acdcnow/ha-xplora-watch`) instead — HACS
    tracks repositories by URL, not by integration domain, so it won't follow the fork on its own.
    If you installed manually, just replace the contents of `custom_components/xplora_watch/`.
 3. Restart Home Assistant once after upgrading so the entity/option migrations above can run.

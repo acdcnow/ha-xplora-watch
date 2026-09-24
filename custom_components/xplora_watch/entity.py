@@ -85,7 +85,7 @@ class XploraBaseEntity(CoordinatorEntity[XploraDataUpdateCoordinator], RestoreEn
             model=coordinator.data[self.watch_uid].get("model", DEVICE_NAME),
             name=f"{self.watch_name} {ATTR_WATCH.title()} ({self.account_token})",
             sw_version=coordinator.os_version,
-            configuration_url="https://github.com/distante/ha-xplora-watch/blob/main/README.md",
+            configuration_url="https://github.com/acdcnow/ha-xplora-watch/blob/main/README.md",
         )
 
     def branded_object_id(self, *parts: str) -> str:

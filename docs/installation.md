@@ -13,11 +13,11 @@
 4. Go to **Settings → Devices & Services → + Add Integration**, search for "**HA Xplora® Watch**",
    and follow the config flow (see [Setup](#setup) below).
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=distante&repository=ha-xplora-watch&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=acdcnow&repository=ha-xplora-watch&category=integration)
 
 ## Manual installation
 
-Copy the `xplora_watch` folder from the [latest release](https://github.com/distante/ha-xplora-watch/releases)
+Copy the `xplora_watch` folder from the [latest release](https://github.com/acdcnow/ha-xplora-watch/releases)
 into your Home Assistant's `custom_components` folder (usually inside your `/config` folder — on
 Hass.io, copy it over SAMBA; on Home Assistant Supervised it may be at
 `/usr/share/hassio/homeassistant`). Create the `custom_components` folder first if it doesn't

@@ -60,6 +60,7 @@ sensor.xplora_<child>_watch_alarms_<account>      # alarms card
 sensor.xplora_<child>_watch_silents_<account>     # silent-times card
 sensor.xplora_<child>_watch_message_<account>     # chat card
 button.xplora_<child>_watch_update_<account>      # controls card (add _reboot / _shutdown as wanted)
+switch.xplora_<child>_watch_live_follow_<account>  # live-follow toggle (bounded fast polling)
 ```
 
 `<child>` is the child's name and `<account>` the account alias (e.g. `mom`) you chose during setup

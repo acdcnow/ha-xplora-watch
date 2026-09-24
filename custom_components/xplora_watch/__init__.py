@@ -17,14 +17,14 @@ from homeassistant.loader import async_get_integration
 from homeassistant.util import slugify
 
 from .config import resolve_account_alias
-from .const import ATTR_WATCH, DATA_HASS_CONFIG, DOMAIN, GUARDIAN_ONLY_KEYS
+from .const import ATTR_WATCH, DATA_HASS_CONFIG, DOMAIN, GUARDIAN_ONLY_KEYS, SWITCH_LIVE_FOLLOW
 from .coordinator import XploraDataUpdateCoordinator
 from .helper import account_token, async_copy_dashboard_templates, async_register_frontend_card, create_www_directory
 from .pyxplora_api.exception_classes import LoginError, PhoneOrEmailFail
 from .services import async_setup_services, async_unload_services
 from .websocket import async_register_websocket_commands
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.DEVICE_TRACKER, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.DEVICE_TRACKER, Platform.SENSOR, Platform.SWITCH]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -210,13 +210,18 @@ def _async_remove_orphaned_switch_entities(hass: HomeAssistant, config_entry: Co
     The per-entry alarm/silent switches were replaced by the `*_alarms` / `*_silents` list
     sensors. Home Assistant keeps registry entries after a platform stops providing them (to
     preserve history/customizations), so without this they would linger forever as
-    "Unavailable". The integration only ever created `switch`-domain entities for alarms/silents,
-    so removing every `switch` owned by this config entry is safe and one-shot (idempotent: once
-    gone there is nothing left to remove on subsequent setups).
+    "Unavailable". Those switches were the only switch entities the integration created *before*
+    the live-follow switch existed, so any switch whose unique id is not the live-follow toggle is
+    a leftover and is removed -- the live-follow switch itself is kept (it is created by the
+    `switch` platform on every setup). One-shot and idempotent: once the leftovers are gone there is
+    nothing left to remove on subsequent setups.
     """
+    # Matched as a `_watch_`-delimited token of the unique id (the shape every platform builds), so a
+    # ward named like the key cannot cause a false match.
+    keep_marker = f"_{ATTR_WATCH}_{SWITCH_LIVE_FOLLOW}_"
     entity_registry = er.async_get(hass)
     for entity in er.async_entries_for_config_entry(entity_registry, config_entry.entry_id):
-        if entity.domain == Platform.SWITCH.value:
+        if entity.domain == Platform.SWITCH.value and keep_marker not in str(entity.unique_id):
             _LOGGER.debug("Removing orphaned alarm/silent switch entity '%s'", entity.entity_id)
             entity_registry.async_remove(entity.entity_id)
 

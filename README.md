@@ -80,6 +80,8 @@ Breaking changes and upgrade steps are in the
 - [Call & notification activity](docs/notifications.md) — SOS, calls, power and low-battery events as
   Home Assistant events and logbook lines, plus a most-recent-call sensor
 - Battery, charging, online state, steps, XCoins
+- [Live follow](docs/polling.md) — refresh a watch **every 30 seconds** for a bounded session (the
+  **Live follow** switch, or `xplora_watch.follow`), which then stops by itself
 - Reboot / shut down the watch remotely (Guardian accounts)
 - A full [services API](docs/services.md) for automations, plus dependency-free
   [dashboard cards](docs/dashboard-cards.md) for everything above
@@ -91,7 +93,8 @@ Breaking changes and upgrade steps are in the
 - Home Assistant **2026.9.3** or newer.
 - Every watch comes out of the box with its useful entities already **enabled** — battery, steps,
   XCoins, unread messages, distance, safe zone, alarms, silent times, location history and the
-  charging/online state. Nothing has to be switched on, and no sensor has to be built by hand.
+  charging/online state — plus the **Live follow** switch for temporary fast tracking. Nothing has to
+  be switched on, and no sensor has to be built by hand.
 - Two deliberate exceptions, both opt-in: the destructive **reboot/shutdown** buttons, and the two
   **notification-feed** extras (the most-recent-call sensor and the *Check notifications* button),
   which you switch on together with the notification categories in the options.

@@ -43,6 +43,7 @@ async def test_setup_entry_happy_path(hass, mock_config_entry_phone: MockConfigE
         "button",
         "device_tracker",
         "sensor",
+        "switch",
     }
 
 

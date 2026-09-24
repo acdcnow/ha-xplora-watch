@@ -10,6 +10,7 @@
 #  PLACEHOLDERS
 #    BUTTON_ENTITY   button.xplora_<child>_watch_update_<account>
 #                    (+ _refresh_functions / _reboot / _shutdown if enabled)
+#    FOLLOW_SWITCH   switch.xplora_<child>_watch_live_follow_<account>
 #    LAST_UPDATE     sensor.xplora_<child>_watch_last_update_<account>
 #    BATTERY         sensor.xplora_<child>_watch_battery_<account>
 #
@@ -33,6 +34,14 @@ views:
           # - button.xplora_<child>_watch_refresh_functions_<account>
           # - button.xplora_<child>_watch_reboot_<account>
           # - button.xplora_<child>_watch_shutdown_<account>
+
+      # Bounded live tracking: switch this on to refresh the watch every 30 seconds for
+      # 15 minutes; it then stops by itself and the watch returns to the configured interval.
+      - type: entities
+        title: Live follow
+        entities:
+          - entity: FOLLOW_SWITCH
+            name: Live follow
 
       # Plain status entities — swap in whichever ones you care about. Every watch has
       # battery, steps, XCoins, unread messages, distance, last update and the

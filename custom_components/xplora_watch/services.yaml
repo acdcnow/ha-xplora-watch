@@ -154,6 +154,28 @@ fetch_history:
       required: true
       selector: *id001
   name: Fetch location history (day)
+follow:
+  description: 'Start a live-follow session: refresh the watch every 30 seconds for the duration you
+    pick, then stop by itself. Use it to watch a walk home in near-real time. The session is bounded
+    on purpose, so it can never become an always-on fast poll.'
+  fields:
+    duration:
+      description: Length of the session in minutes (1-60, default 15). The session ends by itself when
+        it elapses.
+      name: Duration (minutes)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 60
+          mode: box
+          unit_of_measurement: min
+    device_id:
+      description: The Xplora® watch(es) this action applies to.
+      name: Watch(es)
+      required: true
+      selector: *id001
+  name: Live follow
 logout:
   description: 'Log out the account: invalidate the current session token on Xplora''s servers and force
     a fresh login on the next update.'
@@ -280,6 +302,16 @@ shutdown:
       required: true
       selector: *id001
   name: Shut Down Watch
+stop_follow:
+  description: 'Stop a running live-follow session early. The watch returns to the configured update interval
+    (which is off by default).'
+  fields:
+    device_id:
+      description: The Xplora® watch(es) this action applies to.
+      name: Watch(es)
+      required: true
+      selector: *id001
+  name: Stop live follow
 turn_all_alarms_off:
   description: Disable all alarms on the watch(es).
   fields:

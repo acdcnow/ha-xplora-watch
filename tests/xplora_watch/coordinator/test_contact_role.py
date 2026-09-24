@@ -28,6 +28,7 @@ from custom_components.xplora_watch.const import (
     SENSOR_SILENTS,
     SENSOR_STEP_DAY,
     SENSOR_XCOIN,
+    SWITCH_LIVE_FOLLOW,
 )
 from custom_components.xplora_watch.coordinator import XploraDataUpdateCoordinator
 
@@ -36,7 +37,8 @@ WUID = "watch-1"
 
 def test_guardian_only_keys_lists_every_restricted_entity_kind() -> None:
     # Battery, distance, alarm/silent lists, location-history and current-safezone sensors;
-    # charging and safe-zone binary sensors; and the reboot/shutdown/refresh-functions buttons --
+    # charging and safe-zone binary sensors; the reboot/shutdown/refresh-functions buttons; and the
+    # live-follow switch (a session drives `askWatchLocate`, which a Contact cannot trigger) --
     # the kinds a Contact never populates or may not control. (Device-tracker entities have no
     # description key and are gated at the platform level, so they are intentionally absent from
     # this set.)
@@ -53,6 +55,7 @@ def test_guardian_only_keys_lists_every_restricted_entity_kind() -> None:
             BUTTON_REBOOT,
             BUTTON_SHUTDOWN,
             BUTTON_REFRESH_FUNCTIONS,
+            SWITCH_LIVE_FOLLOW,
         }
     )
 

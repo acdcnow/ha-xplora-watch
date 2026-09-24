@@ -38,9 +38,11 @@ from .const import (
     ATTR_SERVICE_DELETE_ALARM,
     ATTR_SERVICE_DELETE_MSG,
     ATTR_SERVICE_DELETE_SILENT,
+    ATTR_SERVICE_DURATION,
     ATTR_SERVICE_ENABLED,
     ATTR_SERVICE_END,
     ATTR_SERVICE_FETCH_HISTORY,
+    ATTR_SERVICE_FOLLOW,
     ATTR_SERVICE_LOGOUT,
     ATTR_SERVICE_MSG,
     ATTR_SERVICE_MSGID,
@@ -56,6 +58,7 @@ from .const import (
     ATTR_SERVICE_SHUTDOWN,
     ATTR_SERVICE_SILENT_ID,
     ATTR_SERVICE_START,
+    ATTR_SERVICE_STOP_FOLLOW,
     ATTR_SERVICE_TURN_ALL_ALARMS_OFF,
     ATTR_SERVICE_TURN_ALL_ALARMS_ON,
     ATTR_SERVICE_TURN_ALL_SILENTS_OFF,
@@ -85,6 +88,8 @@ from .pyxplora_api.status import NormalStatus
 # `not_guardian` error's `{action}` placeholder and the per-watch "skipped: contact" warning.
 _ACTION_ALARMS = "change the watch's alarms"
 _ACTION_SILENTS = "change the watch's silent times"
+# Live follow drives `askWatchLocate` on a fast timer, which only a primary Guardian can trigger.
+_ACTION_FOLLOW = "follow the watch live"
 
 
 def _target_schema(extra: dict[Any, Any] | None = None) -> vol.Schema:
@@ -122,6 +127,12 @@ BASE_REFRESH_FUNCTIONS_SERVICE_SCHEMA = _target_schema()
 # On-demand, account-wide fetch of the notification feed (calls, SOS, power, low battery). The device
 # target selects the account; the fetch itself is account-wide (one request).
 BASE_REFRESH_NOTIFICATIONS_SERVICE_SCHEMA = _target_schema()
+# Live follow: a bounded fast-poll session for the target watch(es). `duration` is in minutes and is
+# clamped to 1..60 (default 15) by the coordinator, so an automation passing a silly value still gets
+# a sane, self-ending session instead of a schema error.
+BASE_FOLLOW_SERVICE_SCHEMA = _target_schema({vol.Optional(ATTR_SERVICE_DURATION): vol.Coerce(float)})
+# End a running live-follow session early -- no fields beyond the device target.
+BASE_STOP_FOLLOW_SERVICE_SCHEMA = _target_schema()
 # Fetch + cache one past day's location track (default: yesterday). `date` is an optional
 # "YYYY-MM-DD" override; intended to be automated daily so HA archives days beyond the watch's window.
 BASE_FETCH_HISTORY_SERVICE_SCHEMA = _target_schema({vol.Optional(ATTR_SERVICE_DATE): cv.string})
@@ -481,6 +492,7 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
     sensor_update_service = XploraMessageSensorUpdateService(hass, entry_id)
     notify_service = XploraMessageService(hass, entry_id)
     see_service = XploraSeeService(hass, entry_id)
+    follow_service = XploraFollowService(hass, entry_id)
     refresh_functions_service = XploraRefreshFunctionsService(hass, entry_id)
     refresh_notifications_service = XploraRefreshNotificationsService(hass, entry_id)
     fetch_history_service = XploraFetchHistoryService(hass, entry_id)
@@ -489,6 +501,12 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
 
     async def async_see(service: ServiceCall) -> None:
         await see_service.async_see(kwargs=dict(service.data))
+
+    async def async_follow(service: ServiceCall) -> None:
+        await follow_service.async_follow(kwargs=dict(service.data))
+
+    async def async_stop_follow(service: ServiceCall) -> None:
+        await follow_service.async_stop_follow(kwargs=dict(service.data))
 
     async def async_refresh_functions(service: ServiceCall) -> None:
         await refresh_functions_service.async_refresh_functions(kwargs=dict(service.data))
@@ -560,6 +578,8 @@ async def async_setup_services(hass: HomeAssistant, entry_id: str) -> None:
     hass.services.async_register(DOMAIN, ATTR_SERVICE_READ_MSG, async_read_message, schema=BASE_READ_MESSAGE_SERVICE_SCHEMA)
     hass.services.async_register(DOMAIN, ATTR_SERVICE_SEND_MSG, async_send_message, schema=BASE_SEND_MESSAGE_SERVICE_SCHEMA)
     hass.services.async_register(DOMAIN, ATTR_SERVICE_SEE, async_see, schema=BASE_SEE_SERVICE_SCHEMA)
+    hass.services.async_register(DOMAIN, ATTR_SERVICE_FOLLOW, async_follow, schema=BASE_FOLLOW_SERVICE_SCHEMA)
+    hass.services.async_register(DOMAIN, ATTR_SERVICE_STOP_FOLLOW, async_stop_follow, schema=BASE_STOP_FOLLOW_SERVICE_SCHEMA)
     hass.services.async_register(
         DOMAIN, ATTR_SERVICE_REFRESH_FUNCTIONS, async_refresh_functions, schema=BASE_REFRESH_FUNCTIONS_SERVICE_SCHEMA
     )
@@ -603,6 +623,8 @@ def async_unload_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_READ_MSG)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_SEND_MSG)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_SEE)
+    hass.services.async_remove(DOMAIN, ATTR_SERVICE_FOLLOW)
+    hass.services.async_remove(DOMAIN, ATTR_SERVICE_STOP_FOLLOW)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_REFRESH_FUNCTIONS)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_REFRESH_NOTIFICATIONS)
     hass.services.async_remove(DOMAIN, ATTR_SERVICE_CREATE_ALARM)
@@ -796,6 +818,47 @@ class XploraRefreshNotificationsService(XploraService):
             await account.call("Refresh notifications", None, coordinator.async_refresh_notifications, recover=False)
 
         await self._fan_out(data, ATTR_SERVICE_REFRESH_NOTIFICATIONS, body)
+
+
+class XploraFollowService(XploraService):
+    """Start/stop a bounded *live follow* session: fast, temporary polling of the target watch(es).
+
+    The session refreshes the watch every `FOLLOW_INTERVAL_SECONDS` until its duration elapses, then
+    ends by itself and the integration returns to its configured cadence. It exists so a user can
+    watch a walk home in near-real-time without leaving a permanently aggressive poll in place -- the
+    configured intervals still cannot go below 30 minutes on purpose (see `normalize_scan_interval`).
+    """
+
+    async def async_follow(self, **kwargs: Any) -> None:
+        """Start (or extend) a live-follow session for the targeted watch(es)."""
+        data = kwargs["kwargs"]
+        minutes = data.get(ATTR_SERVICE_DURATION)
+
+        async def body(account: _Account) -> None:
+            coordinator = account.coordinator
+            wuids = account.targets(guardian=True, action=_ACTION_FOLLOW)
+            if not wuids:
+                return
+            account.log.debug("%s: live follow for %s", coordinator.controller.getUserName(), ", ".join(wuids))
+            # No network here: starting a session is local (the session's own refreshes go through the
+            # normal poll path), so there is nothing to recover -- `recover=False`.
+            await account.call("Live follow", None, lambda: coordinator.async_start_follow(wuids, minutes), recover=False)
+
+        await self._fan_out(data, ATTR_SERVICE_FOLLOW, body)
+
+    async def async_stop_follow(self, **kwargs: Any) -> None:
+        """End a running live-follow session for the targeted watch(es) early."""
+        data = kwargs["kwargs"]
+
+        async def body(account: _Account) -> None:
+            coordinator = account.coordinator
+            wuids = account.targets(guardian=True, action=_ACTION_FOLLOW)
+            if not wuids:
+                return
+            account.log.debug("%s: stop live follow for %s", coordinator.controller.getUserName(), ", ".join(wuids))
+            await account.call("Stop live follow", None, lambda: coordinator.async_stop_follow(wuids), recover=False)
+
+        await self._fan_out(data, ATTR_SERVICE_STOP_FOLLOW, body)
 
 
 class XploraFetchHistoryService(XploraService):

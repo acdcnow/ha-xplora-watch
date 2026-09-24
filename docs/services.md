@@ -11,6 +11,8 @@ messaging services lives on their feature pages, linked below; this page is the 
 | Service | Purpose |
 | --- | --- |
 | `xplora_watch.see` | Manually refresh the watch's live status: location, battery, charging, online status and steps (the data from the watch's device list). Other data has its own services and is not refreshed here: chat messages via `read_message`, and location-history archiving via `fetch_history`. Alarms, silent times and safe zones refresh on their own interval or on demand via `refresh_functions`. See [Update interval (polling)](polling.md). |
+| `xplora_watch.follow` | Start a bounded **live-follow** session: refresh the target watch(es) every 30 seconds for `duration` minutes (default 15, maximum 60), then stop by itself. Guardian-only. See [Update interval (polling)](polling.md). |
+| `xplora_watch.stop_follow` | End a running live-follow session early. Guardian-only. |
 | `xplora_watch.reboot` | Reboot the watch. Guardian-only — see [Account types](account-types.md). |
 | `xplora_watch.shutdown` | Power down the watch. Guardian-only. |
 | `xplora_watch.logout` | Log out the account: invalidate the current session token on Xplora's servers and force a fresh login on the next update. |

@@ -17,13 +17,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .config import ResolvedOptions, resolve, resolve_language
 from .const import (
     API_KEY_MAPBOX,
+    ATTR_FOLLOW_ENDS_AT,
+    ATTR_FOLLOW_INTERVAL,
+    ATTR_FOLLOW_REMAINING,
     ATTR_HISTORY_ADDR,
     ATTR_HISTORY_CITY,
     ATTR_HISTORY_LAT,
@@ -52,6 +55,7 @@ from .const import (
     CONF_WATCHES,
     DOMAIN,
     EVENT_CALL,
+    FOLLOW_INTERVAL_SECONDS,
     LAST_UPDATE_NO_RESPONSE,
     LAST_UPDATE_OK,
     LOC_HISTORY_ATTR_MAX_POINTS,
@@ -69,6 +73,7 @@ from .const import (
     SENSOR_XCOIN,
     URL_MAPBOX,
     URL_OPENSTREETMAP,
+    normalize_follow_minutes,
 )
 from .demo import is_demo_account, make_controller
 from .geocoder import OpenCageGeocodeUA
@@ -219,6 +224,20 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         # Unsubscribe callback for the optional 01:00 daily history auto-fetch listener.
         # None when the feature is disabled or not yet set up.
         self._cancel_history_scheduler: Callable[[], None] | None = None
+        # Live-follow sessions: `{wuid: deadline}` for the bounded, user-triggered fast-poll window
+        # (see `async_start_follow`). Empty outside a session, and deliberately IN-MEMORY only -- a
+        # follow session is a foreground action, so a Home Assistant restart ends it and the
+        # integration returns to its configured (by default off) cadence rather than resuming a
+        # fast poll nobody is watching.
+        self._follow_deadlines: dict[str, datetime] = {}
+        # Unsubscribe callback for the follow timer. Armed on the first session, cancelled when the
+        # last one ends (or on teardown), so an idle integration runs no extra timer at all.
+        self._cancel_follow: Callable[[], None] | None = None
+        # Timestamp of the most recent rate-limit (HTTP 429) response. `_fetch_and_store_xplora_data`
+        # translates a 429 into `UpdateFailed` (HA then logs and retries on the next scan interval),
+        # which loses the exception type at the caller -- the follow loop needs it to abort instead of
+        # retrying into a ban, so the moment is recorded here as well.
+        self._rate_limited_at: datetime | None = None
         name = f"{DOMAIN}-"
         if CONF_PHONENUMBER in entry.data:
             name += entry.data[CONF_PHONENUMBER][5:]
@@ -860,6 +879,10 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         except RateLimitError as err:
             # Never retry a 429 ourselves -- that's the whole point of RateLimitError bypassing the
             # per-field retry loops; a re-auth inside a rate-limit window worsens a ban.
+            # Record the moment too: `UpdateFailed` hides the exception type from callers, and the
+            # live-follow loop must be able to tell "the server pushed back" from "this poll just
+            # failed" so it aborts a session instead of retrying every 30 s into the ban.
+            self._rate_limited_at = datetime.now()
             raise UpdateFailed(f"Xplora API rate limit exceeded: {err}") from err
         except XploraConnectionError as err:
             # A connection/timeout failure means we genuinely don't know the watch state; fail the
@@ -987,6 +1010,127 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         action (the `xplora_watch.refresh_functions` service or tapping the overview card).
         """
         return await self.async_update_xplora_data(targets=targets, force_functions=True)
+
+    # --- Live follow: a bounded, user-triggered fast-poll session ---------------------------------
+    def follow_deadline(self, wuid: str) -> datetime | None:
+        """When this watch's live-follow session ends, or None while it is not following.
+
+        A session whose deadline has passed but whose watch has not been swept off yet (the sweep
+        runs on the next tick) reports None here as well, so the switch never shows a stale `on`.
+        """
+        deadline = self._follow_deadlines.get(wuid)
+        if deadline is None or deadline <= datetime.now():
+            return None
+        return deadline
+
+    def follow_remaining(self, wuid: str) -> int | None:
+        """Seconds left in this watch's live-follow session (None when it is not following)."""
+        deadline = self.follow_deadline(wuid)
+        return None if deadline is None else int((deadline - datetime.now()).total_seconds())
+
+    def follow_state(self, wuids: list[str] | None = None) -> dict[str, Any]:
+        """Snapshot of the live-follow state (switch attributes and the service response)."""
+        targets = list(wuids) if wuids is not None else sorted(self._follow_deadlines)
+        deadlines = {wuid: self.follow_deadline(wuid) for wuid in targets}
+        return {
+            ATTR_FOLLOW_INTERVAL: FOLLOW_INTERVAL_SECONDS,
+            "wuids": [wuid for wuid, deadline in deadlines.items() if deadline is not None],
+            ATTR_FOLLOW_ENDS_AT: next((dt.isoformat() for dt in deadlines.values() if dt is not None), None),
+            ATTR_FOLLOW_REMAINING: next(
+                (self.follow_remaining(wuid) for wuid, deadline in deadlines.items() if deadline is not None), None
+            ),
+        }
+
+    async def async_start_follow(self, wuids: list[str], minutes: int | str | float | None = None) -> dict[str, Any]:
+        """Start (or extend) a bounded live-follow session for `wuids`.
+
+        The session refreshes exactly these watches every `FOLLOW_INTERVAL_SECONDS` until `minutes`
+        (clamped to 1..60, default 15) have passed, then ends by itself. A call for a watch that is
+        already following only moves its deadline, so re-triggering from an automation extends the
+        window instead of stacking timers or leaving a permanent fast poll behind. The first refresh
+        runs immediately -- a session you had to wait 30 s for would feel broken -- and a failure
+        there does not roll the session back: it is time-boxed and the next tick retries.
+        """
+        targets = [wuid for wuid in wuids if wuid]
+        if not targets:
+            return self.follow_state()
+        duration = normalize_follow_minutes(minutes)
+        # One shared deadline per call, so every watch in it ends together.
+        deadline = datetime.now() + timedelta(minutes=duration)
+        for wuid in targets:
+            if wuid not in self._follow_deadlines:
+                self._log.debug("Live follow started for watch ...%s (%d min, every %d s)", wuid[25:], duration, FOLLOW_INTERVAL_SECONDS)
+            else:
+                self._log.debug("Live follow extended for watch ...%s (%d min from now)", wuid[25:], duration)
+            self._follow_deadlines[wuid] = deadline
+        self._ensure_follow_loop()
+        self.async_update_listeners()
+        await self._follow_refresh(targets)
+        return self.follow_state(targets)
+
+    async def async_stop_follow(self, wuids: list[str] | None = None) -> dict[str, Any]:
+        """End the live-follow session for `wuids` (every following watch when omitted)."""
+        targets = list(wuids) if wuids is not None else list(self._follow_deadlines)
+        for wuid in targets:
+            if self._follow_deadlines.pop(wuid, None) is not None:
+                self._log.debug("Live follow stopped for watch ...%s", wuid[25:])
+        if not self._follow_deadlines:
+            self._cancel_follow_loop()
+        self.async_update_listeners()
+        return self.follow_state(targets)
+
+    def _ensure_follow_loop(self) -> None:
+        """Arm the follow timer (idempotent: a later session reuses the running timer)."""
+        if self._cancel_follow is None:
+            self._cancel_follow = async_track_time_interval(self.hass, self._follow_tick, timedelta(seconds=FOLLOW_INTERVAL_SECONDS))
+            self._log.debug("Live-follow timer armed (every %d s)", FOLLOW_INTERVAL_SECONDS)
+
+    def _cancel_follow_loop(self) -> None:
+        """Cancel the follow timer, if armed (leaves no idle timer behind)."""
+        if self._cancel_follow is not None:
+            self._cancel_follow()
+            self._cancel_follow = None
+            self._log.debug("Live-follow timer cancelled")
+
+    def _drop_expired_follow(self) -> list[str]:
+        """Sweep watches whose deadline has passed and return the ones still following."""
+        now = datetime.now()
+        for wuid in [wuid for wuid, deadline in self._follow_deadlines.items() if deadline <= now]:
+            self._follow_deadlines.pop(wuid, None)
+            self._log.debug("Live follow expired for watch ...%s", wuid[25:])
+        return list(self._follow_deadlines)
+
+    async def _follow_tick(self, _now: datetime) -> None:
+        """One live-follow refresh round (timer callback).
+
+        Ends the session when its deadline has passed, then refreshes whatever is left. A refresh
+        that reports a rate limit aborts EVERY running session immediately: a 429 is the server
+        telling us to stop, and hammering on is exactly the behaviour this integration exists to
+        avoid. Other failures are swallowed at debug -- the session is time-boxed and the next tick
+        simply tries again, so a watch briefly out of reach does not end a session the user started.
+        """
+        remaining = self._drop_expired_follow()
+        if not remaining:
+            self._cancel_follow_loop()
+            self.async_update_listeners()
+            return
+        await self._follow_refresh(remaining)
+
+    async def _follow_refresh(self, wuids: list[str]) -> None:
+        """Refresh `wuids` once through the normal poll path with the follow-specific error policy."""
+        rate_limited_before = self._rate_limited_at
+        try:
+            await self.async_update_xplora_data(targets=list(wuids))
+        except Exception as err:  # noqa: BLE001 -- bounded session: transient failures just retry
+            # A 429 surfaces here as `UpdateFailed`, so compare the recorded rate-limit stamp with the
+            # one read before the call to tell a rate limit from an ordinary poll failure.
+            if self._rate_limited_at is not None and self._rate_limited_at != rate_limited_before:
+                self._log.warning("Live follow aborted for %d watch(es): Xplora reported a rate limit (HTTP 429)", len(wuids))
+                await self.async_stop_follow(None)
+                return
+            self._log.debug("Live follow refresh failed, will retry on the next tick: %s", err)
+            return
+        self.async_update_listeners()
 
     async def data_loop(
         self,
@@ -1601,7 +1745,7 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         self.async_update_listeners()
 
     def async_teardown(self) -> None:
-        """Cancel the history auto-fetch scheduler, if active.
+        """Cancel the history auto-fetch scheduler and the live-follow timer, if active.
 
         Registered via ``entry.async_on_unload`` so it runs on every unload/reload before the
         coordinator is discarded; also called by ``setup_history_scheduler`` to stay idempotent.
@@ -1610,6 +1754,10 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
             self._cancel_history_scheduler()
             self._cancel_history_scheduler = None
             self._log.debug("History auto-fetch scheduler cancelled")
+        # A follow session ends with the coordinator that owns it: the timer would otherwise fire
+        # against an unloaded entry, and the switches are recreated (off) on the next setup.
+        self._cancel_follow_loop()
+        self._follow_deadlines.clear()
 
     def _bounded_history(self, wuid: str) -> tuple[list[dict[str, Any]], int]:
         """Return the bounded recent slice the sensor exposes, plus the full retained count.

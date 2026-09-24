@@ -61,6 +61,11 @@
       "xcoin": {
         "name": "XCoins"
       }
+    },
+    "switch": {
+      "live_follow": {
+        "name": "Suivi en direct"
+      }
     }
   },
   "issues": {

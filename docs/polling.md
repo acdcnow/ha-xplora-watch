@@ -30,6 +30,36 @@ Existing installs are migrated automatically: a previously configured interval i
 the nearest preset the next time you open _Options_ (anything faster than 30 minutes becomes
 30 minutes).
 
+## Live follow (temporary fast polling)
+
+Sometimes "every 30 minutes" is simply not what you need — you want to watch a walk home. **Live
+follow** is the one deliberate exception to the "never poll fast" rule, and it is bounded on
+purpose:
+
+- **Start** it from the watch's **Live follow** switch (enabled out of the box) or with the
+  `xplora_watch.follow` service, which takes an optional `duration` in minutes.
+- While a session runs, that watch is refreshed **every 30 seconds** — the same request the Life
+  app sends while its map is open, so 15 minutes of following is 30 refreshes.
+- It **always ends by itself**: the default is **15 minutes** and the maximum is **60**. Stop it
+  early with the switch or with `xplora_watch.stop_follow`; the watch then returns to the interval
+  from _Options_ (by default: no polling at all).
+- If Xplora answers with a rate limit (HTTP 429) during a session, the session is **aborted
+  immediately** — the integration never retries into a ban.
+- Sessions are never stacked (starting one again just moves its end time) and nothing is persisted:
+  a Home Assistant restart ends every session.
+
+The switch carries the countdown (`remaining`, `ends_at`, `interval`), so a dashboard can show it:
+
+```yaml
+type: entities
+title: Live follow
+entities:
+  - entity: switch.xplora_dana_watch_live_follow_mom
+```
+
+Only a **Guardian** can trigger a fresh location fix, so the switch and both services are
+Guardian-only, like the other watch controls (see [Account types](account-types.md)).
+
 ## Alarms / silent times / safe zones interval
 
 Alarms, silent-time windows and safe-zone definitions can't be bundled into the main status

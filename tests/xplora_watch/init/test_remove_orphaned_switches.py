@@ -42,3 +42,24 @@ async def test_no_switch_entities_is_a_noop(hass, mock_config_entry_phone: MockC
     _async_remove_orphaned_switch_entities(hass, mock_config_entry_phone)
 
     assert registry.async_get(sensor.entity_id) is not None
+
+
+async def test_keeps_the_live_follow_switch(hass, mock_config_entry_phone: MockConfigEntry) -> None:
+    """The sweep must not delete the live-follow switch.
+
+    That switch *is* a switch this integration still creates on every setup, so purging every
+    `switch.*` of the entry would delete it again on each reload; only the alarm/silent leftovers
+    (which no platform provides any more) are removed.
+    """
+    registry = er.async_get(hass)
+    follow = registry.async_get_or_create(
+        "switch", "xplora_watch", "kid_one_watch_live_follow_wuid_userid", config_entry=mock_config_entry_phone
+    )
+    legacy_alarm = registry.async_get_or_create(
+        "switch", "xplora_watch", "kid_one_watch_alarm_v1_wuid_userid", config_entry=mock_config_entry_phone
+    )
+
+    _async_remove_orphaned_switch_entities(hass, mock_config_entry_phone)
+
+    assert registry.async_get(follow.entity_id) is not None
+    assert registry.async_get(legacy_alarm.entity_id) is None

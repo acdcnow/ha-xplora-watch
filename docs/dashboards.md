@@ -22,7 +22,7 @@ GitHub) is always the latest.
 | ---- | ------------ |
 | [`xplora-watch-dashboard.yaml`](../custom_components/xplora_watch/dashboards/xplora-watch-dashboard.yaml) | A complete dashboard for one child: **Overview**, **Map**, **Alarms & silence**, **Chat**, **Controls**. |
 | [`family-overview.yaml`](../custom_components/xplora_watch/dashboards/family-overview.yaml) | One view with a card per child, in a grid — for several watches. |
-| [`watch-controls.yaml`](../custom_components/xplora_watch/dashboards/watch-controls.yaml) | One view with the action buttons and status entities. |
+| [`watch-controls.yaml`](../custom_components/xplora_watch/dashboards/watch-controls.yaml) | One view with the action buttons, the live-follow toggle and status entities. |
 
 ## Pasting one
 
@@ -56,6 +56,7 @@ sensor.xplora_<child>_watch_alarms_<account>     # alarms
 sensor.xplora_<child>_watch_silents_<account>    # silent times
 sensor.xplora_<child>_watch_message_<account>    # chat
 button.xplora_<child>_watch_update_<account>     # controls
+switch.xplora_<child>_watch_live_follow_<account> # live-follow toggle
 ```
 
 `<child>` is the child's name and `<account>` the account alias you chose during setup (e.g. `mom`),

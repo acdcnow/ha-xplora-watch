@@ -74,6 +74,17 @@ ATTR_SERVICE_END: Final = "end"
 ATTR_SERVICE_WEEKDAYS: Final = "weekdays"
 ATTR_SERVICE_NAME: Final = "name"
 ATTR_SERVICE_ENABLED: Final = "enabled"
+# Live follow: a bounded, user-triggered session that refreshes the target watch(es) every
+# FOLLOW_INTERVAL_SECONDS until the requested duration elapses. `duration` is in minutes and is
+# clamped to [FOLLOW_MIN_MINUTES, FOLLOW_MAX_MINUTES] by `normalize_follow_minutes`.
+ATTR_SERVICE_FOLLOW: Final = "follow"
+ATTR_SERVICE_STOP_FOLLOW: Final = "stop_follow"
+ATTR_SERVICE_DURATION: Final = "duration"
+# Live-follow attributes, surfaced on the switch so a dashboard/automation can show the countdown
+# without a template sensor.
+ATTR_FOLLOW_ENDS_AT: Final = "ends_at"
+ATTR_FOLLOW_REMAINING: Final = "remaining"
+ATTR_FOLLOW_INTERVAL: Final = "interval"
 
 ATTR_TRACKER_ADDR: Final = "address"
 ATTR_TRACKER_DISTOHOME: Final = "Home Distance (m)"
@@ -240,6 +251,14 @@ BUTTON_REFRESH_FUNCTIONS: Final = "refresh_functions"
 # triggered with polling off, without adding any automatic cadence.
 BUTTON_CHECK_NOTIFICATIONS: Final = "check_notifications"
 
+# Switch platform: the only switch entity the integration creates is the per-watch *live follow*
+# toggle (`on` == a follow session is running for that watch, see FOLLOW_INTERVAL_SECONDS below).
+# It is a control, not configuration, and costs nothing until it is switched on, so it is created
+# enabled by default. A session drives `askWatchLocate` every 30 s, which only a primary Guardian
+# can trigger, so the key is listed in GUARDIAN_ONLY_KEYS below -- a Contact-only watch gets no
+# follow switch (the service is filtered the same way, via `account.targets(guardian=True, ...)`).
+SWITCH_LIVE_FOLLOW: Final = "live_follow"
+
 # Entity description keys that belong to a watch's *Guardian* (`guardianType == "FIRST"`) only and
 # are not created for an account that is merely a *Contact* of the watch. A Contact is sent no
 # battery, location or alarm/silent data (so those sensors would sit permanently unavailable), and
@@ -264,6 +283,7 @@ GUARDIAN_ONLY_KEYS: Final[frozenset[str]] = frozenset(
         BUTTON_REBOOT,
         BUTTON_SHUTDOWN,
         BUTTON_REFRESH_FUNCTIONS,
+        SWITCH_LIVE_FOLLOW,
     }
 )
 
@@ -420,6 +440,38 @@ DEFAULT_SCAN_INTERVAL_FUNCTIONS: Final = SCAN_INTERVAL_OFF
 DEFAULT_REFRESH_ON_CARD_RENDER: Final = False
 # Default for CONF_AUTO_FETCH_HISTORY: OFF (opt-in).
 DEFAULT_AUTO_FETCH_HISTORY: Final = False
+
+# --- Live follow ------------------------------------------------------------------------------
+# The periodic options deliberately cannot poll faster than 30 minutes (`normalize_scan_interval`
+# snaps anything sub-minute up to the nearest preset), because an always-on fast poll is exactly
+# what got accounts throttled and banned. Live follow is the one, deliberate exception: a *bounded*
+# session that starts only when a user or automation asks for it and that ends by itself. Each round
+# is the ordinary `see` fan-out (`setDevices` + `askWatchLocate` per watch) -- the same traffic the
+# Life app sends while its map is open, so 30 s for the 15-minute default is 30 refreshes.
+FOLLOW_INTERVAL_SECONDS: Final = 30
+FOLLOW_DEFAULT_MINUTES: Final = 15
+FOLLOW_MIN_MINUTES: Final = 1
+# 60 minutes at 30 s is 120 refreshes: a ceiling that keeps a forgotten session from turning into an
+# overnight poll. A session that reaches it simply ends, and can be started again deliberately.
+FOLLOW_MAX_MINUTES: Final = 60
+
+
+def normalize_follow_minutes(raw: int | str | float | None) -> int:
+    """Clamp a requested live-follow duration (minutes) into the supported [1, 60] range.
+
+    A missing/unparseable value yields `FOLLOW_DEFAULT_MINUTES`; anything outside the range is
+    clamped rather than rejected, so an automation passing 0 or 240 still gets a bounded session
+    instead of a hard error (the service schema documents the intended range).
+    """
+    if raw is None or raw == "":
+        return FOLLOW_DEFAULT_MINUTES
+    try:
+        value = int(round(float(raw)))
+    except TypeError, ValueError:
+        return FOLLOW_DEFAULT_MINUTES
+    return max(FOLLOW_MIN_MINUTES, min(FOLLOW_MAX_MINUTES, value))
+
+
 # Local-time hour at which the opt-in auto-fetch runs (01:00). Late enough that the previous day is
 # complete; early enough to archive it well within the backend's ~3-day serving window.
 AUTO_FETCH_HISTORY_HOUR: Final = 1

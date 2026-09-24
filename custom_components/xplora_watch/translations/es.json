@@ -224,6 +224,21 @@
               "remove_message": "Cuando está activado, los mensajes eliminados en la app Xplora® se siguen mostrando en la tarjeta de chat."
             }
           },
+          "notifications": {
+            "name": "Eventos y notificaciones",
+            "data": {
+              "notify_call": "Eventos de actividad de llamadas",
+              "notify_low_power": "Eventos de batería baja",
+              "notify_power": "Eventos de encendido/apagado",
+              "notify_sos": "Eventos de alerta SOS"
+            },
+            "data_description": {
+              "notify_call": "Dispara un evento de Home Assistant y escribe una línea en el registro por cada llamada (entrante, saliente, perdida). Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo. La línea del registro guarda el número de teléfono y el nombre del contacto en la base de datos del grabador (recorder) de Home Assistant: una concesión deliberada a la visibilidad, no una garantía de privacidad. Déjalo desactivado si no quieres almacenar números de contacto en tu base de datos.",
+              "notify_low_power": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj informa de batería baja. Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo.",
+              "notify_power": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj se enciende o se apaga. Desactivado de forma predeterminada. Solo se dispara mientras el sondeo está activo.",
+              "notify_sos": "Dispara un evento de Home Assistant y escribe una línea en el registro cuando el reloj envía un SOS. Activado de forma predeterminada. Solo se dispara mientras el sondeo está activo. La línea del registro guarda la ubicación del SOS (latitud/longitud) en la base de datos del grabador (recorder) de Home Assistant: una concesión deliberada a la visibilidad, no una garantía de privacidad."
+            }
+          },
           "history": {
             "name": "Historial de ubicación",
             "data": {

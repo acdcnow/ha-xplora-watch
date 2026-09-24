@@ -63,8 +63,15 @@ class Data(DataClassJsonMixin):
     emoticon_id: Union[str, None] = Emoticon.UNKNOWN__.value
     emoji_id: Union[str, None] = Emoticon.UNKNOWN__.value
     call_name: Union[str, None] = None
+    call_number: Union[str, None] = None
     call_time: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
     call_type: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
+    duration: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
+    # Newer VoIP-capable watches only; older models omit these (branch on presence). `call_mode_detail`
+    # is the reliable missed/declined signal where present (ref:XW-020).
+    call_mode: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
+    call_mode_detail: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
+    voip: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
     lat: Union[float, None] = None
     lng: Union[float, None] = None
     radius: Union[int, None] = field(default=None, metadata=config(decoder=int_or_none))
@@ -94,3 +101,15 @@ class ChatsNew(DataClassJsonMixin):
 @dataclass
 class Chats(DataClassJsonMixin):
     chatsNew: Union[ChatsNew, None] = None  # noqa: N815
+
+
+@dataclass_json
+@dataclass
+class NotificationsFeed(DataClassJsonMixin):
+    list: Union[list[SimpleChat], None] = field(default_factory=list[SimpleChat])
+
+
+@dataclass_json
+@dataclass
+class Notifications(DataClassJsonMixin):
+    notifications: Union[NotificationsFeed, None] = None

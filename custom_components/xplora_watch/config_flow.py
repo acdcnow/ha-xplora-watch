@@ -51,6 +51,10 @@ from .const import (
     CONF_HOME_SAFEZONE,
     CONF_MAPS,
     CONF_MESSAGE,
+    CONF_NOTIFY_CALL,
+    CONF_NOTIFY_LOW_POWER,
+    CONF_NOTIFY_POWER,
+    CONF_NOTIFY_SOS,
     CONF_OPENCAGE_APIKEY,
     CONF_PHONENUMBER,
     CONF_REFRESH_ON_CARD_RENDER,
@@ -80,6 +84,7 @@ from .const import (
     SECTION_GENERAL,
     SECTION_HISTORY,
     SECTION_LOCATION,
+    SECTION_NOTIFICATIONS,
     SECTION_POLLING,
     SECTION_WATCHES,
     SIGNIN,
@@ -91,7 +96,7 @@ from .const import (
 from .const_schema import DATA_SCHEMA_EMAIL, DATA_SCHEMA_PHONE
 from .demo import make_controller
 from .helper import watch_user_label
-from .pyxplora_api.exception_classes import Error, LoginError, PhoneOrEmailFail
+from .pyxplora_api.exception_classes import AuthError, Error, LoginError, PhoneOrEmailFail, RateLimitError
 from .pyxplora_api.pyxplora_api_async import PyXploraApi
 from .pyxplora_api.status import UserContactType
 
@@ -519,6 +524,18 @@ class XploraOptionsFlowHandler(OptionsFlow):
             }
         )
 
+        notifications = vol.Schema(
+            {
+                # Per-category notification toggles (ADR 0016). SOS defaults ON (safety); calls/power/
+                # low-battery default OFF. Enabling calls or SOS writes contact numbers/names + SOS GPS
+                # to the recorder via the logbook line -- the PII warning is in the options strings.
+                vol.Required(CONF_NOTIFY_SOS, default=_options.get(CONF_NOTIFY_SOS, True)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_CALL, default=_options.get(CONF_NOTIFY_CALL, False)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_POWER, default=_options.get(CONF_NOTIFY_POWER, False)): BooleanSelector(),
+                vol.Required(CONF_NOTIFY_LOW_POWER, default=_options.get(CONF_NOTIFY_LOW_POWER, False)): BooleanSelector(),
+            }
+        )
+
         return vol.Schema(
             {
                 # Watch selection + account alias lead: they are what a multi-account user has to
@@ -528,6 +545,7 @@ class XploraOptionsFlowHandler(OptionsFlow):
                 vol.Required(SECTION_POLLING): section(polling, SectionConfig(collapsed=False)),
                 vol.Required(SECTION_LOCATION): section(location, SectionConfig(collapsed=True)),
                 vol.Required(SECTION_CHAT): section(chat, SectionConfig(collapsed=True)),
+                vol.Required(SECTION_NOTIFICATIONS): section(notifications, SectionConfig(collapsed=True)),
                 vol.Required(SECTION_HISTORY): section(history, SectionConfig(collapsed=True)),
                 vol.Required(SECTION_GENERAL): section(general, SectionConfig(collapsed=True)),
             }
@@ -541,8 +559,26 @@ class XploraOptionsFlowHandler(OptionsFlow):
         # against the rate-limit-sensitive auth endpoint every time. Fall back to a one-off login
         # only when no loaded coordinator exists (e.g. the entry failed to set up).
         coordinator = self.hass.data.get(DOMAIN, {}).get(self.config_entry.entry_id)
-        controller = coordinator.controller if coordinator is not None else await sign_in(hass=self.hass, data=self.config_entry.data)
-        watches = await controller.setDevices()
+        if coordinator is not None:
+            # Reuse the live, authenticated controller (no fresh login -- ban-defense), but its
+            # `self.watchs` is cached from first login and `_wuid` is pinned to the saved selection,
+            # so `getWatchUserIDs()` would only ever echo the already-selected watches. Force one
+            # fresh `deviceList` fetch so a watch added since setup is offered. Best-effort: a
+            # transient failure must not lock the user out of editing unrelated options, so fall back
+            # to the last-known list (still non-empty for a reused controller) on any client error.
+            controller = coordinator.controller
+            try:
+                await controller.reload_watch_list()
+            except (Error, RateLimitError, AuthError) as err:
+                _LOGGER.debug("Could not refresh the watch list for the options screen: %s", err)
+        else:
+            # No loaded coordinator (e.g. the entry failed to set up): `sign_in` runs `init()`, which
+            # already loads the current account list into a controller with no pinned `_wuid`, so no
+            # extra reload is needed here.
+            controller = await sign_in(hass=self.hass, data=self.config_entry.data)
+        # Enumerate the full account (not the `_wuid`-pinned `getWatchUserIDs`, which stays the
+        # entity-scoping filter); the saved `CONF_WATCHES` below keeps current picks pre-selected.
+        watches = controller.getAllWatchUserIDs()
         _options = self.config_entry.options
 
         watch_schema: OrderedDict[Any, Any] = OrderedDict()

@@ -349,6 +349,10 @@ class DemoPyXploraApi(PyXploraApi):
         """Skip the real (network) existence check used by the config flow's `validate_input`."""
         return True
 
+    async def reload_watch_list(self, *args: Any, **kwargs: Any) -> None:
+        """No-op: the demo account's single watch is seeded in `init`; there is no server to refetch."""
+        return None
+
     async def setDevices(self, ids: str | list[str] | None = None, functions: frozenset[WatchFunction] = ALL_WATCH_FUNCTIONS) -> list[str]:
         """Always resolve to this account's single demo watch, ignoring the requested `ids`."""
         return await self._setDevices([self._profile.wuid], functions=functions)
@@ -586,6 +590,49 @@ class DemoPyXploraApi(PyXploraApi):
                 )
             )
         return ChatsNew(messages).to_dict()
+
+    async def getNotifications(self, uid: str = "", offset: int = 0, limit: int = 20) -> list[SimpleChat]:
+        """A network-free notification feed so the call/SOS/power/low-battery surface is demoable.
+
+        One synthetic entry per category, all routed to this account's watch via `sender.id`. No real
+        CALL_LOG was ever captured, so the call entry is built from the documented fields (ref:XW-020):
+        a missed incoming call. Newest-first, like the real feed.
+        """
+        profile = self._profile
+        now = int(time.time())
+        watch = User(id=profile.wuid, userId=profile.wuid, name=profile.child_name)
+        guardian = User(id=profile.user_id, userId=profile.user_id, name=profile.user_name)
+
+        def _entry(suffix: str, type_: ChatType, create: int, data: Data) -> SimpleChat:
+            return SimpleChat(
+                id=f"demo-notif-{profile.wuid}-{suffix}",
+                msgId=f"demo-notif-{suffix}",
+                readFlag=1,
+                sender=watch,
+                receiver=guardian,
+                data=data,
+                create=create,
+                type=type_.value,
+            )
+
+        return [
+            _entry(
+                "call",
+                ChatType.CALL_LOG,
+                now - 300,
+                Data(
+                    call_type=2,
+                    duration=0,
+                    call_name=profile.user_name,
+                    call_number="+491700000000",
+                    call_time=now - 305,
+                    call_mode_detail=50,
+                ),
+            ),
+            _entry("sos", ChatType.SOS, now - 1800, Data(lat=profile.lat, lng=profile.lng, battery=profile.battery)),
+            _entry("power", ChatType.POWER_ON, now - 3600, Data(lat=profile.lat, lng=profile.lng, battery=profile.battery)),
+            _entry("lowpower", ChatType.LOW_POWER, now - 7200, Data(battery=15)),
+        ]
 
     async def getWatchLocHistory(self, wuid: str, *args: Any, **kwargs: Any) -> dict[str, Any]:
         """A short synthetic track around this account's location, so the history map has a path to draw.

@@ -35,6 +35,7 @@ API_KEY_MAPBOX: Final = "pk.eyJ1IjoieHBsb3JhdGVjaG5vbG9naWVzIiwiYSI6ImNrenpoYnFo
 
 ATTR_SERVICE_SEE: Final = "see"
 ATTR_SERVICE_REFRESH_FUNCTIONS: Final = "refresh_functions"
+ATTR_SERVICE_REFRESH_NOTIFICATIONS: Final = "refresh_notifications"
 # Fetch + cache one past day's location track (default: yesterday). Meant to be automated daily so HA
 # keeps an archive beyond the few days the watch's API still serves. `ATTR_SERVICE_DATE` overrides
 # the day (YYYY-MM-DD).
@@ -122,6 +123,7 @@ SECTION_WATCHES: Final = "watches"
 SECTION_POLLING: Final = "polling"
 SECTION_LOCATION: Final = "location"
 SECTION_CHAT: Final = "chat"
+SECTION_NOTIFICATIONS: Final = "notifications"
 SECTION_HISTORY: Final = "history"
 SECTION_GENERAL: Final = "general"
 OPTIONS_SECTIONS: Final[tuple[str, ...]] = (
@@ -129,10 +131,23 @@ OPTIONS_SECTIONS: Final[tuple[str, ...]] = (
     SECTION_POLLING,
     SECTION_LOCATION,
     SECTION_CHAT,
+    SECTION_NOTIFICATIONS,
     SECTION_HISTORY,
     SECTION_GENERAL,
 )
 CONF_AUTO_MARK_READ: Final = "auto_mark_read"
+# Per-category opt-in toggles for the account notification feed (calls, SOS, power, low battery).
+# Gate what fires once polling is on; SOS defaults ON (safety), the rest OFF (PII/noise). See
+# ADR 0016. Enabling calls or SOS writes contact numbers/names + SOS GPS to the recorder via the
+# logbook line -- a documented trade, not a privacy guarantee.
+CONF_NOTIFY_CALL: Final = "notify_call"
+CONF_NOTIFY_SOS: Final = "notify_sos"
+CONF_NOTIFY_POWER: Final = "notify_power"
+CONF_NOTIFY_LOW_POWER: Final = "notify_low_power"
+# One page per poll, newest-first, no auto-paging (ADR 0015). >20 new entries between two polls is
+# implausible for a child's watch on the coarse cadence; the overflow is dropped with a warning
+# rather than paged deeper (every extra page is another request against a ban-sensitive account).
+NOTIFICATIONS_PAGE_LIMIT: Final = 20
 CONF_MAPS: Final = "maps"
 CONF_MESSAGE: Final = "message"
 CONF_OPENCAGE_APIKEY: Final = "opencage_apikey"
@@ -153,6 +168,12 @@ CONF_REFRESH_ON_CARD_RENDER: Final = "refresh_on_card_render"
 # ADR 0005. Set from the single seam `XploraBaseEntity.branded_object_id` and merged in by the base
 # `extra_state_attributes`, so every entity carries it.
 ATTR_XPLORA_ROLE: Final = "xplora_role"
+# HA bus event types fired per notification-feed category (ADR 0014). Direction/outcome are payload
+# values, never separate event types (the call_type mapping is inferred, ref:XW-020).
+EVENT_CALL: Final = f"{DOMAIN}_call"
+EVENT_SOS: Final = f"{DOMAIN}_sos"
+EVENT_POWER: Final = f"{DOMAIN}_power"
+EVENT_LOW_POWER: Final = f"{DOMAIN}_low_power"
 # When enabled, the integration automatically fetches the previous day's location track at 01:00
 # local time — only if the day's data is not already cached. Removes the need for a manual
 # automation calling `xplora_watch.fetch_history` daily.
@@ -186,6 +207,17 @@ SENSOR_CURRENT_SAFEZONE: Final = "current_safezone"
 # themselves live in attributes (bounded -- see below) and in a persistent Store (the full,
 # retained set). See `coordinator` (fetch/accumulate) and `sensor.XploraHistorySensor`.
 SENSOR_LOCATION_HISTORY: Final = "location_history"
+# Most-recent-call sensor (one per watch). State is the last call's timestamp (device_class
+# timestamp -- a non-PII value safe for long-term state history); the contact/direction/duration/
+# missed detail rides in attributes that are kept OUT of the recorder (ADR 0014).
+SENSOR_LAST_CALL: Final = "last_call"
+# Call-event / most-recent-call-sensor attribute keys (also the HA event payload keys).
+ATTR_CALL_DIRECTION: Final = "direction"
+ATTR_CALL_DURATION: Final = "duration"
+ATTR_CALL_MISSED: Final = "missed"
+ATTR_CALL_NAME: Final = "call_name"
+ATTR_CALL_NUMBER: Final = "call_number"
+ATTR_CALL_TIME: Final = "call_time"
 
 BINARY_SENSOR_CHARGING: Final = "charging"
 BINARY_SENSOR_SAFEZONE: Final = "safezone"
@@ -203,6 +235,10 @@ BUTTON_UPDATE: Final = "update"
 # (which refreshes location/battery via `see`), this is the only control that re-fetches alarms &
 # silent times, so it carries a descriptive name on the controls card.
 BUTTON_REFRESH_FUNCTIONS: Final = "refresh_functions"
+# `check_notifications` does an on-demand, account-wide fetch of the notification feed (calls, SOS,
+# power, low battery) -- the same effect as the `refresh_notifications` service. Lets the feature be
+# triggered with polling off, without adding any automatic cadence.
+BUTTON_CHECK_NOTIFICATIONS: Final = "check_notifications"
 
 # Entity description keys that belong to a watch's *Guardian* (`guardianType == "FIRST"`) only and
 # are not created for an account that is merely a *Contact* of the watch. A Contact is sent no

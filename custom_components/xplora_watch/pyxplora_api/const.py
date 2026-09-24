@@ -52,6 +52,7 @@ class GqlOperation(StrEnum):
     WATCH_LAST_LOCATE = "WatchLastLocate"
     CHATS = "Chats"
     CONTACTS = "contacts"  # lowercase-initial op name, kept verbatim (ref:XW-019)
+    NOTIFICATIONS = "notifications"  # lowercase-initial op name, kept verbatim (ref:XW-020; ADR 0011)
     SIGN_IN = "signInWithEmailOrPhone"
     REFRESH_TOKEN = "RefreshToken"
 

@@ -3,9 +3,16 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
-from homeassistant.components.sensor import ENTITY_ID_FORMAT, SensorDeviceClass, SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    ENTITY_ID_FORMAT,
+    RestoreSensor,
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ID, CONF_LANGUAGE, CONF_NAME, PERCENTAGE, EntityCategory, UnitOfLength
 from homeassistant.core import HomeAssistant
@@ -14,6 +21,12 @@ from homeassistant.helpers.typing import StateType
 
 from .const import (
     ATTR_ALARM,
+    ATTR_CALL_DIRECTION,
+    ATTR_CALL_DURATION,
+    ATTR_CALL_MISSED,
+    ATTR_CALL_NAME,
+    ATTR_CALL_NUMBER,
+    ATTR_CALL_TIME,
     ATTR_HISTORY_POINTS,
     ATTR_HISTORY_TOTAL_POINTS,
     ATTR_HISTORY_WINDOW_HOURS,
@@ -38,6 +51,7 @@ from .const import (
     SENSOR_BATTERY,
     SENSOR_CURRENT_SAFEZONE,
     SENSOR_DISTANCE,
+    SENSOR_LAST_CALL,
     SENSOR_LAST_UPDATE,
     SENSOR_LOCATION_HISTORY,
     SENSOR_MESSAGE,
@@ -144,6 +158,16 @@ HISTORY_SENSOR_TYPE: SensorEntityDescription = SensorEntityDescription(
     entity_category=EntityCategory.DIAGNOSTIC,
 )
 
+LAST_CALL_SENSOR_TYPE: SensorEntityDescription = SensorEntityDescription(
+    key=SENSOR_LAST_CALL,
+    icon="mdi:phone-log",
+    device_class=SensorDeviceClass.TIMESTAMP,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    # Opt-in: the feature is off by default and the state stays unknown until a call is seen, so the
+    # sensor is disabled-by-default and enabled with one click alongside the calls notification toggle.
+    entity_registry_enabled_default=False,
+)
+
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback) -> None:
     """Set up the Xplora® Watch Version 2 sensors from config entry."""
@@ -187,6 +211,8 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
             entities.append(XploraListSensor(config_entry, coordinator, ward, wuid, description))
         if not (is_contact and HISTORY_SENSOR_TYPE.key in GUARDIAN_ONLY_KEYS):
             entities.append(XploraHistorySensor(config_entry, coordinator, ward, wuid, HISTORY_SENSOR_TYPE))
+        # The call feed is account-wide (not deviceList status), so it is not Guardian-gated here.
+        entities.append(XploraLastCallSensor(config_entry, coordinator, ward, wuid, LAST_CALL_SENSOR_TYPE))
 
     async_add_entities(entities)
 
@@ -442,5 +468,86 @@ class XploraHistorySensor(XploraBaseEntity, SensorEntity):
                 ATTR_HISTORY_POINTS: points if isinstance(points, list) else [],
                 ATTR_HISTORY_TOTAL_POINTS: history.get("total", 0),
                 ATTR_HISTORY_WINDOW_HOURS: LOC_HISTORY_ATTR_WINDOW_HOURS,
+            },
+        )
+
+
+class XploraLastCallSensor(XploraBaseEntity, RestoreSensor):
+    """A one-per-watch sensor whose state is the most recent call's time (ADR 0014).
+
+    The state is a plain timestamp (`device_class=timestamp`) -- a non-PII value safe to keep in
+    long-term state history. The contact number/name, direction, duration and missed flag ride in
+    attributes that are kept OUT of the recorder (`_unrecorded_attributes`), so enabling this sensor
+    does not force contact PII into the state DB. It stays unknown until the first call is seen while
+    the calls notification category is on; the full-detail record of each call is the fired event and
+    its logbook line (ADR 0016).
+
+    The stashed call is in-memory only and empty after a restart, so the (non-PII) timestamp state is
+    restored via `RestoreSensor` so it doesn't drop to unknown until the next call. The PII attributes
+    are deliberately not persisted -- they stay blank after a restart until a fresh call arrives.
+    """
+
+    _unrecorded_attributes = frozenset(
+        {ATTR_CALL_DIRECTION, ATTR_CALL_DURATION, ATTR_CALL_MISSED, ATTR_CALL_NAME, ATTR_CALL_NUMBER, ATTR_CALL_TIME}
+    )
+
+    def __init__(
+        self,
+        config_entry: ConfigEntry,
+        coordinator: XploraDataUpdateCoordinator,
+        ward: dict[str, Any],
+        wuid: str,
+        description: SensorEntityDescription,
+    ) -> None:
+        """Initialize the most-recent-call sensor for an Xplora® Watch."""
+        super().__init__(config_entry, description, coordinator, wuid)
+        self._restored_time: datetime | None = None
+        if self.watch_uid not in self.coordinator.data:
+            return
+
+        # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
+        self._attr_name = description.key.replace("_", " ").title()
+        self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
+        # unique_id mirrors the other sensors so history/customizations are stable across upgrades.
+        self._attr_unique_id = (
+            f"{ward.get(CONF_NAME)}_{ATTR_WATCH}_{description.key}_{wuid}_{coordinator.user_id}".replace(" ", "_").replace("-", "_").lower()
+        )
+        _LOGGER.debug("Updating sensor: %s | Typ: %s | Watch_ID ...%s", self._attr_name, description.key, wuid[25:])
+
+    async def async_added_to_hass(self) -> None:
+        """Restore the last known timestamp so a restart doesn't drop the state to unknown."""
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is not None and isinstance(last.native_value, datetime):
+            self._restored_time = last.native_value
+
+    @property
+    def native_value(self) -> datetime | None:
+        """The last call's time as a tz-aware datetime; the restored value until a call is seen."""
+        call = self.coordinator.last_call(self.watch_uid)
+        if call:
+            # `call_time` is the call itself (epoch seconds); fall back to `create` (the notification
+            # time) on the rare entry that omits it. Both are epoch seconds (ref:XW-020).
+            stamp = call.get(ATTR_CALL_TIME)
+            if stamp is None:
+                stamp = call.get("create")
+            if stamp is not None:
+                return datetime.fromtimestamp(int(stamp), tz=timezone.utc)
+        return self._restored_time
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Expose the contact/direction/duration/missed detail (kept out of the recorder)."""
+        data = super().extra_state_attributes or {}
+        call = self.coordinator.last_call(self.watch_uid) or {}
+        return dict(
+            data,
+            **{
+                ATTR_CALL_DIRECTION: call.get(ATTR_CALL_DIRECTION),
+                ATTR_CALL_DURATION: call.get(ATTR_CALL_DURATION),
+                ATTR_CALL_MISSED: call.get(ATTR_CALL_MISSED),
+                ATTR_CALL_NAME: call.get(ATTR_CALL_NAME),
+                ATTR_CALL_NUMBER: call.get(ATTR_CALL_NUMBER),
+                ATTR_CALL_TIME: call.get(ATTR_CALL_TIME),
             },
         )

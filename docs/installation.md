@@ -35,6 +35,21 @@ Configuration is done entirely through the UI config flow — there is no YAML c
 
 Don't have a watch handy? See [Try it without a watch (demo mode)](demo-mode.md).
 
+## Adding a watch later
+
+You choose which watches the integration tracks during setup, and that selection is stored with
+the integration. A watch you add to your Xplora® account afterwards is **not** picked up
+automatically — no new entities appear on their own.
+
+To start tracking a newly added watch:
+
+1. Go to **Settings → Devices & Services**, find the **HA Xplora® Watch** card, and click
+   **Configure**.
+2. In the **Watches** list, tick the new watch (your existing selections stay checked) and submit.
+
+The list refreshes from your account each time you open **Configure**, so a watch added since setup
+appears there without restarting Home Assistant. Its entities are created after you submit.
+
 ## Changing the sign-in details later
 
 Changed your Xplora® password, or moved the account to a new e-mail address or phone number? Open

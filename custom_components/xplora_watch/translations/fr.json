@@ -224,6 +224,21 @@
               "remove_message": "Lorsque activé, les messages supprimés dans l'application Xplora® restent affichés dans la carte de discussion."
             }
           },
+          "notifications": {
+            "name": "Événements et notifications",
+            "data": {
+              "notify_call": "Événements d'activité d'appel",
+              "notify_low_power": "Événements de batterie faible",
+              "notify_power": "Événements de marche/arrêt",
+              "notify_sos": "Événements d'alerte SOS"
+            },
+            "data_description": {
+              "notify_call": "Déclenche un événement Home Assistant et écrit une ligne de journal pour chaque appel (entrant, sortant, manqué). Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active. La ligne de journal enregistre le numéro de téléphone et le nom du contact dans la base de données de l'enregistreur (recorder) de Home Assistant — un compromis délibéré pour la visibilité, pas une garantie de confidentialité. Laissez désactivé si vous ne voulez pas stocker les numéros de contact dans votre base de données.",
+              "notify_low_power": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre signale une batterie faible. Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active.",
+              "notify_power": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre s'allume ou s'éteint. Désactivé par défaut. Ne se déclenche que lorsque l'interrogation est active.",
+              "notify_sos": "Déclenche un événement Home Assistant et écrit une ligne de journal lorsque la montre envoie un SOS. Activé par défaut. Ne se déclenche que lorsque l'interrogation est active. La ligne de journal enregistre la position du SOS (latitude/longitude) dans la base de données de l'enregistreur (recorder) de Home Assistant — un compromis délibéré pour la visibilité, pas une garantie de confidentialité."
+            }
+          },
           "history": {
             "name": "Historique de position",
             "data": {

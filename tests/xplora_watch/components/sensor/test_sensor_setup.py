@@ -12,6 +12,7 @@ from custom_components.xplora_watch.const import (
     SENSOR_BATTERY,
     SENSOR_CURRENT_SAFEZONE,
     SENSOR_DISTANCE,
+    SENSOR_LAST_CALL,
     SENSOR_LAST_UPDATE,
     SENSOR_LOCATION_HISTORY,
     SENSOR_MESSAGE,
@@ -20,7 +21,13 @@ from custom_components.xplora_watch.const import (
     SENSOR_XCOIN,
 )
 from custom_components.xplora_watch.coordinator import XploraDataUpdateCoordinator
-from custom_components.xplora_watch.sensor import XploraHistorySensor, XploraListSensor, XploraSensor, async_setup_entry
+from custom_components.xplora_watch.sensor import (
+    XploraHistorySensor,
+    XploraLastCallSensor,
+    XploraListSensor,
+    XploraSensor,
+    async_setup_entry,
+)
 from tests.xplora_watch.fixtures.graphql_payloads import DEFAULT_WUID
 
 
@@ -39,17 +46,19 @@ async def test_async_setup_entry_creates_all_sensors(
     mock_config_entry_phone: MockConfigEntry,
     coordinator_with_data: XploraDataUpdateCoordinator,
 ) -> None:
-    """All value sensors plus the alarm/silent list sensors are created per watch in CONF_WATCHES."""
+    """All value sensors plus the alarm/silent list, history and call sensors are created per watch."""
     hass.data.setdefault(DOMAIN, {})[mock_config_entry_phone.entry_id] = coordinator_with_data
     captured, capture_entities = _capture()
 
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
-    # 7 value sensors (XploraSensor) + 2 list sensors (XploraListSensor) + 1 history sensor.
-    assert len(captured) == 10
+    # 7 value sensors (XploraSensor) + 2 list sensors (XploraListSensor) + 1 history sensor
+    # + 1 most-recent-call sensor.
+    assert len(captured) == 11
     value_keys = {e.entity_description.key for e in captured if isinstance(e, XploraSensor)}
     list_keys = {e.entity_description.key for e in captured if isinstance(e, XploraListSensor)}
     history_keys = {e.entity_description.key for e in captured if isinstance(e, XploraHistorySensor)}
+    call_keys = {e.entity_description.key for e in captured if isinstance(e, XploraLastCallSensor)}
     assert value_keys == {
         SENSOR_BATTERY,
         SENSOR_STEP_DAY,
@@ -61,6 +70,7 @@ async def test_async_setup_entry_creates_all_sensors(
     }
     assert list_keys == {SENSOR_ALARMS, SENSOR_SILENTS}
     assert history_keys == {SENSOR_LOCATION_HISTORY}
+    assert call_keys == {SENSOR_LAST_CALL}
 
 
 async def test_all_sensors_enabled_by_default(
@@ -82,7 +92,10 @@ async def test_all_sensors_enabled_by_default(
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
     disabled = {e.entity_description.key for e in captured if not e.entity_registry_enabled_default}
-    assert disabled == set()
+    # One deliberate exception: the most-recent-call sensor. Its data only exists while the calls
+    # notification category is on (ADR 0016), so by default it would sit permanently unknown; it is
+    # enabled together with that toggle.
+    assert disabled == {SENSOR_LAST_CALL}
     assert {e.entity_description.key for e in captured} == {
         SENSOR_BATTERY,
         SENSOR_STEP_DAY,
@@ -94,6 +107,7 @@ async def test_all_sensors_enabled_by_default(
         SENSOR_ALARMS,
         SENSOR_SILENTS,
         SENSOR_LOCATION_HISTORY,
+        SENSOR_LAST_CALL,
     }
 
 

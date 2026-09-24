@@ -192,6 +192,16 @@ refresh_functions:
       required: true
       selector: *id001
   name: Refresh alarms/silents/safe zones
+refresh_notifications:
+  description: Fetch the account's notification feed on demand (calls, SOS, power on/off, low battery)
+    and fire an event for each new entry, so the notification categories you enabled work with polling off.
+  fields:
+    device_id:
+      description: The Xplora® watch(es) this action applies to.
+      name: Watch(es)
+      required: true
+      selector: *id001
+  name: Check notifications
 see:
   description: 'Manually refresh the watch''s live status: location, battery, charging, online status
     and steps (the data from the watch''s device list). Other data has its own services and is not refreshed

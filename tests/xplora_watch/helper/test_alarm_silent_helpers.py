@@ -61,16 +61,16 @@ async def test_async_register_frontend_card_registers_once(hass: HomeAssistant) 
     with (
         patch.object(hass, "http", fake_http, create=True),
         patch("homeassistant.components.frontend.add_extra_js_url") as mock_add_js,
+        patch("homeassistant.helpers.start.async_at_started") as mock_at_started,
     ):
         await async_register_frontend_card(hass)
         await async_register_frontend_card(hass)  # idempotent
 
     fake_http.async_register_static_paths.assert_awaited_once()
-    # The module URL carries a `?v=<version>` cache-bust; the static path itself stays plain.
-    mock_add_js.assert_called_once()
-    called_hass, called_url = mock_add_js.call_args.args
-    assert called_hass is hass
-    assert called_url.startswith(f"{FRONTEND_SCRIPT_URL}?v=")
+    # The card is served + registered as a Lovelace *resource* (scheduled at HA start), NOT via
+    # `add_extra_js_url` -- see the regression test below for why.
+    mock_add_js.assert_not_called()
+    mock_at_started.assert_called_once()
     assert hass.data[DOMAIN][DATA_FRONTEND_REGISTERED] is True
 
 
@@ -79,6 +79,49 @@ async def test_async_register_frontend_card_skips_without_http(hass: HomeAssista
     with patch.object(hass, "http", None, create=True):
         await async_register_frontend_card(hass)  # must not raise
     assert DATA_FRONTEND_REGISTERED not in hass.data[DOMAIN]
+
+
+async def test_frontend_card_registered_as_lovelace_resource_not_extra_js(hass: HomeAssistant) -> None:
+    """Regression guard for issue #5: the bundle must be registered as a storage-mode Lovelace
+    *resource*, and NOT via `add_extra_js_url`.
+
+    `add_extra_js_url` loads the bundle during early app boot -- before HA installs the
+    scoped-custom-element-registry polyfill that replaces `window.customElements`. The bundle's
+    `customElements.define(...)` calls then land on the original (native) registry, which the
+    polyfill swaps out, so HA never finds the cards ("Custom element doesn't exist" on every render).
+    A Lovelace resource is loaded later, after the polyfill is in place. If registration ever reverts
+    to `add_extra_js_url` (no resource created), this test must fail.
+    """
+    hass.data.setdefault(DOMAIN, {})
+    fake_http = MagicMock()
+    fake_http.async_register_static_paths = AsyncMock()
+    resources = MagicMock()
+    resources.loaded = True
+    resources.async_items = MagicMock(return_value=[])
+    resources.async_create_item = AsyncMock()
+    hass.data["lovelace"] = MagicMock(resources=resources)
+
+    started_cb = None
+
+    def _capture(_hass: HomeAssistant, cb):
+        nonlocal started_cb
+        started_cb = cb
+        return lambda: None
+
+    with (
+        patch.object(hass, "http", fake_http, create=True),
+        patch("homeassistant.components.frontend.add_extra_js_url") as mock_add_js,
+        patch("homeassistant.helpers.start.async_at_started", side_effect=_capture),
+    ):
+        await async_register_frontend_card(hass)
+        assert started_cb is not None, "resource registration must be scheduled at HA start"
+        await started_cb(hass)  # simulate HA having started
+
+    mock_add_js.assert_not_called()
+    resources.async_create_item.assert_awaited_once()
+    (created,), _kwargs = resources.async_create_item.await_args
+    assert created["res_type"] == "module"
+    assert created["url"].startswith(f"{FRONTEND_SCRIPT_URL}?v=")
 
 
 async def test_register_lovelace_resource_creates_item_when_absent(hass: HomeAssistant) -> None:

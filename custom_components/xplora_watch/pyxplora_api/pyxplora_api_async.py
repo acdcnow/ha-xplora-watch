@@ -16,7 +16,7 @@ import aiohttp
 from .const import ALL_WATCH_FUNCTIONS, MISSING_LOCATION_TM, WatchFunction
 from .exception_classes import Error, ErrorMSG, LoginError
 from .gql_handler_async import GQLHandler
-from .model import Chats, ChatsNew, Data, SimpleChat, SmallChat, SmallChatList, User
+from .model import Chats, ChatsNew, Data, Notifications, SimpleChat, SmallChat, SmallChatList, User
 from .pyxplora import PyXplora
 from .status import (
     Emoji,
@@ -243,6 +243,28 @@ class PyXploraApi(PyXplora):
                 continue
             watchs.append({"ward": ward})
         self.watchs = watchs
+
+    async def reload_watch_list(self) -> None:
+        """Force a fresh `deviceList` fetch to repopulate `self.watchs`, bypassing the once-only gate.
+
+        `init()` loads the account watch list only when `self.watchs` is empty (a per-poll no-op
+        after the first), so a watch added to the account later never appears. The options flow
+        calls this before building the watch picker so a newly added watch is offered without a
+        fresh login (the ban driver) -- `deviceList` is the same cheap authenticated call every poll
+        already makes. Enumerate the refreshed list with `getAllWatchUserIDs` (not the `_wuid`-pinned
+        `getWatchUserIDs`, which stays the entity-scoping filter).
+        """
+        await self._load_watch_list()
+
+    def getAllWatchUserIDs(self) -> list[str]:  # noqa: N802 -- matches the camelCase client surface
+        """Every ward id on the account, independent of the `_wuid` selection filter.
+
+        `getWatchUserIDs` short-circuits to the pinned `_wuid` (the saved `CONF_WATCHES` subset) when
+        set -- correct for scoping entity creation, but it means it can never surface a watch the
+        user has not yet selected. The options-flow picker needs the full account list so a newly
+        added watch can be chosen, so it reads `self.watchs` directly here.
+        """
+        return [watch["ward"]["id"] for watch in self.watchs if watch.get("ward", {}).get("id")]
 
     async def setDevices(self, ids: str | list[str] | None = None, functions: frozenset[WatchFunction] = ALL_WATCH_FUNCTIONS) -> list[str]:
         if self.inter_error is not None:
@@ -571,6 +593,18 @@ class PyXploraApi(PyXplora):
         except Error as e:
             _LOGGER.error("Error getting unread chat message count: %s", e)
             return -1
+
+    async def getNotifications(self, uid: str = "", offset: int = 0, limit: int = 20) -> list[SimpleChat]:
+        """Fetch one page of the account notification feed (calls, SOS, power, low battery).
+
+        Read-only and account-wide (`uid=""` covers all watches). A single page, no auto-paging: the
+        caller derives "new" from a client-side high-water mark and never marks the feed read
+        (ADR 0015). Returns the parsed feed entries, or an empty list on an empty/error response.
+        """
+        result = await self._gql_handler.notifications_a(uid=uid, offset=offset, limit=limit, asObject=True)
+        if isinstance(result, Notifications) and result.notifications and result.notifications.list:
+            return result.notifications.list
+        return []
 
     async def getWatchChats(
         self, wuid: str, offset: int = 0, limit: int = 0, msgId: str = "", show_del_msg: bool = True, asObject: bool = False

@@ -101,6 +101,30 @@ This integration comes with a devcontainer, easy to use with Visual Studio Code.
 [blog post](https://helgeklein.com/blog/developing-custom-integrations-for-home-assistant-getting-started/)
 for helpful information on how to get started with Home Assistant integration development.
 
+## Documentation and the wiki
+
+[`README.md`](README.md) is the landing page **and** the HACS info panel: HACS 2.x renders README
+variants and no longer reads `info.md`, so anything a user should see in the store belongs in the
+README.
+
+The full manual lives in [`docs/`](docs/index.md) — one page per feature area — and that is the copy
+to edit. `scripts/check_docs_links.py` (run by the `Docs links` workflow) fails on a broken internal
+link or anchor, and `tests/xplora_watch/helper/test_docs_examples.py` validates the YAML examples
+that ship in the docs.
+
+The [wiki](https://github.com/acdcnow/ha-xplora-watch/wiki) mirrors `docs/` one page per file, for
+readers who look for documentation there. **Do not edit wiki pages by hand** — they are generated:
+
+```bash
+git clone https://github.com/acdcnow/ha-xplora-watch.wiki.git /tmp/xplora-wiki
+python scripts/mirror_wiki.py /tmp/xplora-wiki
+cd /tmp/xplora-wiki && git add -A && git commit -m "Sync the wiki with docs/" && git push
+```
+
+`scripts/mirror_wiki.py` rewrites the cross-page links to wiki page names, points images at the
+repository, stamps every page with its source file and the current version, and fails if a page still
+links a raw `.md` file (see the module docstring for the details).
+
 ## Cutting a release
 
 **The GitHub Release notes are this project's changelog.** There is no `CHANGELOG.md` file by design —

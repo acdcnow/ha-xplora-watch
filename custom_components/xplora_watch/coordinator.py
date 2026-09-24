@@ -226,6 +226,13 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
             name=f"{DOMAIN}-{entry.data[CONF_PHONENUMBER][5:] if CONF_EMAIL not in entry.data else ''}",
             update_method=self.async_update_xplora_data,
             update_interval=_update_interval,
+            # Pass the entry explicitly instead of letting HA fall back to the `current_entry`
+            # ContextVar. HA 2026.9 flags the ContextVar path in `DataUpdateCoordinator.__init__`
+            # ("relies on ContextVar, but should pass the config entry explicitly") and only leaves
+            # it alone for custom integrations because it cannot be enforced there; the explicit
+            # form is the documented one, and it keeps `async_config_entry_first_refresh` (which
+            # requires `config_entry` to be set) working no matter which task calls it.
+            config_entry=entry,
         )
 
     async def set_controller(self, session: aiohttp.ClientSession | None) -> None:

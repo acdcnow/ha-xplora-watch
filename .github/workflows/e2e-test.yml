@@ -54,21 +54,25 @@ jobs:
       #     `/manifest.json` and the specs drive Lovelace.
       #   - ha-ffmpeg: the integration's helper imports `haffmpeg` at flow-load, so the demo config
       #     flow won't start without it.
-      #   - hassil, home-assistant-intents, mutagen, numpy, pymicro-vad, pyspeex-noise, PyTurboJPEG:
-      #     the frontend's boot-time `get_services` call imports HA's hardcoded base-component set (via
-      #     homeassistant.helpers.service._base_components — camera, ai_task, assist_satellite, ...),
-      #     which transitively load conversation/tts/assist_pipeline; those module-load imports pull
-      #     these packages in. Without them `get_services` raises, the frontend hangs forever on the
+      #   - hassil, home-assistant-intents, mutagen, numpy, pymicro-vad, pyspeex-noise, PyTurboJPEG,
+      #     gazetteer-matcher: the frontend's boot-time `get_services` call imports HA's hardcoded
+      #     base-component set (via homeassistant.helpers.service._base_components — camera, ai_task,
+      #     assist_satellite, ...), which transitively load conversation/tts/assist_pipeline; those
+      #     module-load imports pull these packages in. Without them `get_services` raises, the
+      #     frontend hangs forever on the
       #     "Loading data" splash, and no dashboard ever renders. The
       #     list is fixed by HA's hardcoded `_base_components`, NOT by our config, so a minimal config
       #     does not avoid it. To regenerate after a core bump (only if the frontend hangs again):
       #     call `homeassistant.helpers.service._base_components()` under the lean lock and add
       #     whatever it fails to import.
+      #     `gazetteer-matcher` specifically: `homeassistant.components.conversation.default_agent`
+      #     imports it at module level, and `conversation` is a declared dependency of the base
+      #     component `ai_task`, so a missing wheel makes the whole `get_services` call raise.
       - name: Install on-demand runtime deps matched to the pinned core
         run: |
           c="$(python -c 'import homeassistant, pathlib; print(pathlib.Path(homeassistant.__file__).parent / "package_constraints.txt")')"
           python -m pip install \
-            home-assistant-frontend ha-ffmpeg \
+            home-assistant-frontend ha-ffmpeg gazetteer-matcher \
             hassil home-assistant-intents mutagen numpy pymicro-vad pyspeex-noise PyTurboJPEG \
             -c "$c"
 

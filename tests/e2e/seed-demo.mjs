@@ -100,8 +100,19 @@ export async function seedDemoHa(baseUrl = DEFAULT_URL) {
   for (const e of entries) {
     const start = await req("POST", "/api/config/config_entries/options/flow", { json: { handler: e.entry_id, show_advanced_options: true } });
     if (!start.ok || start.data?.step_id !== "init") fail(`options flow start failed for ${e.title}`, start);
-    const input = {};
-    for (const f of start.data.data_schema || []) if (f.default !== undefined) input[f.name] = f.default;
+    // The form is built from collapsible sections, which serialize as
+    // `{name, type: "expandable", schema: [...]}` and carry no default of their own. The payload has
+    // to be nested under the section key (that is exactly what `flatten_sections` unwraps again), so
+    // walk into each section instead of reading only the top-level defaults.
+    const collect = (fields) => {
+      const out = {};
+      for (const f of fields || []) {
+        if (f.type === "expandable" || f.type === "section") out[f.name] = collect(f.schema);
+        else if (f.default !== undefined) out[f.name] = f.default;
+      }
+      return out;
+    };
+    const input = collect(start.data.data_schema);
     const done = await req("POST", `/api/config/config_entries/options/flow/${start.data.flow_id}`, { json: input });
     if (done.data?.type !== "create_entry") fail(`options flow submit failed for ${e.title}`, done);
     console.log(`✓ options set (watch selected): ${e.title}`);

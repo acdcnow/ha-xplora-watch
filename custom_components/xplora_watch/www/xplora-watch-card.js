@@ -1190,8 +1190,11 @@ class XploraWatchCard extends HTMLElement {
       .pill.on { color: var(--text-primary-color, #fff); background: var(--primary-color); border-color: var(--primary-color); }
 
       .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
-      ha-icon-button { --mdc-icon-button-size: 44px; color: var(--secondary-text-color); }
-      ha-switch { --mdc-theme-secondary: var(--primary-color); }
+ha-icon-button { --ha-icon-button-size: 44px; color: var(--secondary-text-color); }
+/* HA 2026.9: ha-switch no longer reads the old mdc theme variable (frontend 20260826.7's
+   ha-switch contains zero mdc references), so the checked track is themed through its own
+   token instead -- same "on" colour as before. */
+ha-switch { --ha-switch-checked-background-color: var(--primary-color); }
 
       /* ---- overflow (3-dot) menu ---- */
       .menu-backdrop { position: fixed; inset: 0; z-index: 8; }

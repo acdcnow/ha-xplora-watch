@@ -1,13 +1,15 @@
 # Location history
 
 The phone app shows where the watch has been during the day as a map track (about the last 3 days).
-Home Assistant can show the same — and keep **much more** than the app does — through an optional
+Home Assistant can show the same — and keep **much more** than the app does — through a
 **location-history sensor** plus a map view in the overview card.
 
 > [!NOTE]
-> The `sensor.<watch>_location_history` sensor is **disabled by default** (like the message sensor).
-> Enable it on the watch's device page first. While it is disabled the integration makes **zero**
-> extra requests for history, keeping the [ban-safe default](ban-defense.md).
+> The `sensor.<watch>_location_history` sensor is created **enabled**, so nothing has to be turned on
+> first. That costs no recurring traffic: the integration makes **zero** history requests on the
+> regular poll — a `LocHistory` request happens only when you open the history view or refresh on
+> demand, keeping the [ban-safe default](ban-defense.md). If you don't want the sensor, just disable
+> it on the watch's device page.
 
 ## How it works
 

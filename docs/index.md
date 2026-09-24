@@ -17,6 +17,7 @@ one page per feature area.
 
 ## Features
 
+- [Ready-made dashboards](dashboards.md) — copy-and-paste dashboards, no manual sensors needed
 - [Alarms & silent times](alarms-and-silent-times.md) — sensors, services, common automations
 - [Location history](location-history.md) — the history sensor, retention, and daily archiving
 - [Safe zones](safe-zones.md) — the safe-zone sensors and trackers
@@ -28,3 +29,5 @@ one page per feature area.
 ## Reference
 
 - [Troubleshooting](troubleshooting.md) — enabling debug logging
+- Diagnostics: **Settings → Devices & Services → HA Xplora® Watch → Download diagnostics** gives a
+  redacted snapshot (secrets and personal data removed) that answers most support questions.

@@ -1,0 +1,57 @@
+# =============================================================================
+#  HA Xplora® Watch — controls & status for one watch
+# =============================================================================
+#
+#  HOW TO USE
+#    Open any dashboard → Edit dashboard → + Add view → scroll to the bottom of the view
+#    editor and paste this YAML without the leading "title:"/"views:" wrapper.
+#    (Pasting it as a whole dashboard also works — then keep the wrapper.)
+#
+#  PLACEHOLDERS
+#    BUTTON_ENTITY   button.xplora_<child>_watch_update_<account>
+#                    (+ _refresh_functions / _reboot / _shutdown if enabled)
+#    LAST_UPDATE     sensor.xplora_<child>_watch_last_update_<account>
+#    BATTERY         sensor.xplora_<child>_watch_battery_<account>
+#
+#  Both the "Update location" and "Refresh alarms & silent times" buttons are enabled
+#  by default; the destructive "Restart watch" / "Shut down watch" buttons are not —
+#  enable them on the watch's device page if you want them here. See README.md next to this file.
+# =============================================================================
+
+title: Xplora controls
+views:
+  - title: Controls
+    path: controls
+    icon: mdi:cog
+    cards:
+      # The buttons that act on the watch. Actions marked with a confirm dialog
+      # (restart, shut down) ask before they fire.
+      - type: custom:xplora-watch-actions-card
+        title: Watch controls
+        entities:
+          - BUTTON_ENTITY
+          # - button.xplora_<child>_watch_refresh_functions_<account>
+          # - button.xplora_<child>_watch_reboot_<account>
+          # - button.xplora_<child>_watch_shutdown_<account>
+
+      # Plain status entities — swap in whichever ones you care about. Every watch has
+      # battery, steps, XCoins, unread messages, distance, last update and the
+      # charging/online/safe-zone binary sensors already enabled.
+      - type: entities
+        title: Status
+        state_color: true
+        entities:
+          - entity: BATTERY
+            name: Battery
+          - entity: LAST_UPDATE
+            name: Last update
+          # - entity: sensor.xplora_<child>_watch_steps_today_<account>
+          # - entity: binary_sensor.xplora_<child>_watch_state_<account>
+          # - entity: binary_sensor.xplora_<child>_watch_charging_<account>
+          # - entity: binary_sensor.xplora_<child>_watch_safezone_<account>
+
+      # Only needed if you want to see the location here too. The overview card shows
+      # everything of the watch from a single device id.
+      - type: custom:xplora-watch-map-card
+        device: DEVICE_ID
+        aspect_ratio: "16:9"

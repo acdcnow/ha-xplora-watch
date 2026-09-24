@@ -120,9 +120,14 @@ thread (and fetches any new attachments). A full-screen button expands the chat 
 overview card too.
 
 > [!NOTE]
-> The `*_message` sensor is **disabled by default** — enable it on the watch's device page before
-> adding the card. The card shows a placeholder until the sensor is available, and fetches the
+> The `*_message` sensor is created **enabled**, so the card works straight away — no entity has to
+> be switched on first. The card shows a placeholder until the sensor is available, and fetches the
 > thread automatically the first time it opens with nothing cached.
+
+> Ready-made views using these cards — Overview, Map, Alarms & silence, Chat and Controls tabs, or
+> one card per child — are in
+> [`custom_components/xplora_watch/dashboards/`](../custom_components/xplora_watch/dashboards); see
+> [Ready-made dashboards](dashboards.md).
 
 ![Chat card](../images/chat_card.png)
 

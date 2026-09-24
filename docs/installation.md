@@ -1,5 +1,9 @@
 # Installation & configuration
 
+> [!IMPORTANT]
+> This version requires Home Assistant **2026.9.3** or newer. HACS enforces the minimum itself and
+> will simply not offer the update on an older version.
+
 ## HACS (recommended)
 
 1. Ensure [HACS](https://hacs.xyz/) is installed.
@@ -30,3 +34,25 @@ Configuration is done entirely through the UI config flow — there is no YAML c
    elsewhere in this manual.
 
 Don't have a watch handy? See [Try it without a watch (demo mode)](demo-mode.md).
+
+## Changing the sign-in details later
+
+Changed your Xplora® password, or moved the account to a new e-mail address or phone number? Open
+**Settings → Devices & Services → HA Xplora® Watch**, use the entry's **⋮** menu → **Reconfigure**,
+and enter the new details.
+
+Everything is kept: the watch's device, every entity id, their recorded history and the accumulated
+location archive. Deleting the integration and adding it again would throw all of that away, so
+Reconfigure is always the right tool here. (Your current password is never shown back to you — type
+the new one to replace it.)
+
+If the stored credentials stop working, the integration raises a **repair issue** with a direct
+pointer to this same dialog instead of failing silently.
+
+## Getting support data
+
+**Settings → Devices & Services → HA Xplora® Watch → ⋮ → Download diagnostics** produces a JSON
+snapshot to attach to a bug report: the entry's configuration (password, e-mail/phone number, IMEI
+and OpenCage key redacted), the polling settings, and one block per watch with its status, role,
+counts and the last time its alarms/silent times were fetched. Chat bodies and raw history point
+lists are deliberately reduced to counts, so the file stays small and shareable.

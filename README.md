@@ -54,7 +54,15 @@ More cards — chat, per-watch map, alarms & silent times — are covered in
 - Reboot / shut down the watch remotely (Guardian accounts)
 - A full [services API](docs/services.md) for automations, plus dependency-free
   [dashboard cards](docs/dashboard-cards.md) for everything above
+- [Ready-made dashboards](docs/dashboards.md) to copy and paste — no manual/template sensors needed
 - No real watch yet? Explore it risk-free in [demo mode](docs/demo-mode.md)
+
+## Requirements
+
+- Home Assistant **2026.9.3** or newer.
+- Every watch comes out of the box with its useful entities already **enabled** — battery, steps,
+  XCoins, unread messages, distance, safe zone, alarms, silent times, location history and the
+  charging/online state. Nothing has to be switched on, and no sensor has to be built by hand.
 
 ## Quickstart
 
@@ -71,6 +79,12 @@ Upgrading from the original `Ludy87/xplora_watch`? See
 [Migrating from Ludy87/xplora_watch](docs/migrating-from-ludy87.md) — it installs in place, no
 re-login needed.
 
+Changed your Xplora® password, or moved the account to a new e-mail address or phone number? Use
+**Settings → Devices & Services → HA Xplora® Watch → Reconfigure** — your entities, their recorded
+history and the stored location archive are kept. If sign-in fails, the integration also raises a
+**repair issue** pointing at that same shortcut, and **Download diagnostics** gives a redacted
+snapshot to attach to a bug report.
+
 ## Documentation
 
 The full manual lives in [`docs/`](docs/index.md):
@@ -83,7 +97,8 @@ The full manual lives in [`docs/`](docs/index.md):
 | [Alarms & silent times](docs/alarms-and-silent-times.md) | [Location history](docs/location-history.md) |
 | [Safe zones](docs/safe-zones.md) | [Send a message](docs/send-message.md) |
 | [Voice, video & image messages](docs/media.md) | [Dashboard cards](docs/dashboard-cards.md) |
-| [Services reference](docs/services.md) | [Troubleshooting](docs/troubleshooting.md) |
+| [Ready-made dashboards](docs/dashboards.md) | [Services reference](docs/services.md) |
+| [Troubleshooting](docs/troubleshooting.md) | [Diagnostics](docs/index.md#reference) |
 
 ## Getting help
 

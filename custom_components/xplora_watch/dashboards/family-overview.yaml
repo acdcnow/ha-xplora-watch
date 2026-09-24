@@ -1,0 +1,40 @@
+# =============================================================================
+#  HA Xplora® Watch — family overview (several children on one view)
+# =============================================================================
+#
+#  HOW TO USE
+#    Open any dashboard → Edit dashboard → + Add view → scroll to the bottom of the view
+#    editor and paste this YAML without the leading "title:"/"views:" wrapper.
+#    (Pasting it as a whole dashboard also works — then keep the wrapper.)
+#
+#  Fill in one DEVICE_ID_n per child, and uncomment/copy a block per additional watch.
+#  Each card shows that child's battery, charging/online state, last known position,
+#  steps, XCoins, unread messages, alarms, silent times and safe-zone status — and
+#  tapping a row opens the matching editor, map or history track.
+#
+#  DEVICE_ID_n: the watch's device id — see README.md next to this file
+# =============================================================================
+
+title: Family
+views:
+  - title: Watches
+    path: watches
+    icon: mdi:account-child
+    cards:
+      - type: grid
+        title: All watches
+        columns: 2
+        square: false
+        cards:
+          # --- Child 1 ---------------------------------------------------------
+          - type: custom:xplora-watch-overview-card
+            device: DEVICE_ID_1
+            # title: Dana
+          # --- Child 2 (uncomment + copy per additional child) ------------------
+          # - type: custom:xplora-watch-overview-card
+          #   device: DEVICE_ID_2
+          #   title: Ben
+          # --- Child 3 ----------------------------------------------------------
+          # - type: custom:xplora-watch-overview-card
+          #   device: DEVICE_ID_3
+          #   title: Mia

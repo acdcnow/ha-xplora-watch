@@ -14,7 +14,7 @@ Three kinds of entities surface them (all Guardian-only — see [Account types](
   within your Home Assistant home radius also counts as "inside", even if the watch itself
   reports otherwise.
 - **`sensor.<watch>_current_safezone`** — the **name** of the safe zone the watch says it is in
-  right now (disabled by default). While the watch is outside every safe zone the state is
+  right now. While the watch is outside every safe zone the state is
   **unknown** — that is the normal "not in any zone" reading, **not** an error. The sensor is a
   pure watch report: "Home is Safezone" has no effect on it, and there is no fixed
   "outside"-style state that could collide with a zone you named yourself.

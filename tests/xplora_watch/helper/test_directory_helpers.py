@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from homeassistant.core import HomeAssistant
 
 from custom_components.xplora_watch.const import DOMAIN
-from custom_components.xplora_watch.helper import create_www_directory
+from custom_components.xplora_watch.helper import async_copy_dashboard_templates, create_www_directory
 
 
 async def test_create_www_directory_creates_all_expected_paths(hass: HomeAssistant) -> None:
@@ -53,3 +53,31 @@ async def test_create_www_directory_registers_local_media_paths(hass: HomeAssist
     fake_http.async_register_static_paths.assert_awaited_once()
     configs = fake_http.async_register_static_paths.await_args.args[0]
     assert {c.url_path for c in configs} == {"/local/image", "/local/video", "/local/voice"}
+
+
+async def test_copy_dashboard_templates_copies_the_bundled_files(hass: HomeAssistant) -> None:
+    """The dashboard templates ship inside the package and are copied into the user's config dir.
+
+    HACS installs only `custom_components/<domain>`, so without this copy a HACS user would have to
+    browse GitHub to copy a dashboard template.
+    """
+    await async_copy_dashboard_templates(hass)
+
+    target = hass.config.path(f"www/{DOMAIN}/dashboards")
+    assert os.path.exists(os.path.join(target, "xplora-watch-dashboard.yaml"))
+    assert os.path.exists(os.path.join(target, "family-overview.yaml"))
+    assert os.path.exists(os.path.join(target, "watch-controls.yaml"))
+
+
+async def test_copy_dashboard_templates_never_overwrites_an_existing_file(hass: HomeAssistant) -> None:
+    """A user's edited template survives an update -- existing files are left untouched."""
+    target = hass.config.path(f"www/{DOMAIN}/dashboards")
+    os.makedirs(target, exist_ok=True)
+    edited = os.path.join(target, "family-overview.yaml")
+    with open(edited, "w", encoding="utf-8") as handle:
+        handle.write("my own dashboard\n")
+
+    await async_copy_dashboard_templates(hass)
+
+    with open(edited, encoding="utf-8") as handle:
+        assert handle.read() == "my own dashboard\n"

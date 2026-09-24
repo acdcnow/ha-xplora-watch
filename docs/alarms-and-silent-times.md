@@ -12,7 +12,8 @@
 
 ## Sensors
 
-Per watch (both **disabled by default** — enable them on the device page):
+Per watch (both created **enabled** — their data set is fetched once at setup and then only when you
+refresh it, so no recurring traffic):
 
 | Sensor               | State              | Key attributes                                                            |
 | -------------------- | ------------------ | ------------------------------------------------------------------------- |

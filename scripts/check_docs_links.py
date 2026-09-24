@@ -53,10 +53,13 @@ def heading_slugs(text: str) -> set[str]:
 
 def find_problems() -> list[str]:
     problems: list[str] = []
-    slugs_by_file = {path: heading_slugs(path.read_text()) for path in MARKDOWN_FILES}
+    # Explicit UTF-8: the docs contain non-ASCII ("®", "→"), and `read_text()`'s default is the
+    # *locale* encoding -- which is cp1252 on Windows and raises UnicodeDecodeError there, so the
+    # check could only ever be run on the CI runner.
+    slugs_by_file = {path: heading_slugs(path.read_text(encoding="utf-8")) for path in MARKDOWN_FILES}
 
     for path in MARKDOWN_FILES:
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         for match in LINK_PATTERN.finditer(text):
             target = match.group(1)
             if target.startswith(("http://", "https://", "mailto:")):

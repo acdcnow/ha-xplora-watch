@@ -1,0 +1,92 @@
+# =============================================================================
+#  HA Xplora® Watch — complete dashboard for one watch
+# =============================================================================
+#
+#  HOW TO USE
+#    1. Settings → Dashboards → + Add dashboard (e.g. "Xplora") and open it
+#    2. Edit dashboard (pencil) → ⋮ → Raw configuration editor
+#    3. Replace everything with this file, fill in the placeholders, Save
+#
+#  PLACEHOLDERS TO REPLACE
+#    DEVICE_ID       the watch's device id — see README.md next to this file
+#    ALARMS_ENTITY   sensor.xplora_<child>_watch_alarms_<account>
+#    SILENTS_ENTITY  sensor.xplora_<child>_watch_silents_<account>
+#    MESSAGE_ENTITY  sensor.xplora_<child>_watch_message_<account>
+#    BUTTON_ENTITY   button.xplora_<child>_watch_update_<account>
+#                    (+ _reboot / _shutdown if you enabled those entities)
+#
+#  Only DEVICE_ID has to be filled in for the Overview and Map views to work: those
+#  two cards look up every other entity of the watch by its role attribute. Delete any
+#  view you do not want. Nothing here needs a helper or template sensor.
+# =============================================================================
+
+title: Xplora
+views:
+  # ---------------------------------------------------------------------------
+  # 1. Everything at a glance. Tapping a row opens the matching editor/map.
+  # ---------------------------------------------------------------------------
+  - title: Overview
+    path: overview
+    icon: mdi:watch
+    cards:
+      - type: custom:xplora-watch-overview-card
+        device: DEVICE_ID
+        # show_history: false          # hide the "Location history" row
+        # history_zoom: 15             # max auto-fit zoom for the day's track
+      - type: custom:xplora-watch-map-card
+        device: DEVICE_ID
+        title: Last known position
+        aspect_ratio: "16:9"
+
+  # ---------------------------------------------------------------------------
+  # 2. A big map with the fresh-fix banner and the reload button.
+  # ---------------------------------------------------------------------------
+  - title: Map
+    path: map
+    icon: mdi:map-marker-radius
+    cards:
+      - type: custom:xplora-watch-map-card
+        device: DEVICE_ID
+        # show_header: false           # just the bare map
+        aspect_ratio: "4:3"
+
+  # ---------------------------------------------------------------------------
+  # 3. Alarms and silent times: add, edit, delete and toggle them without the app.
+  # ---------------------------------------------------------------------------
+  - title: Alarms & silence
+    path: alarms
+    icon: mdi:alarm
+    cards:
+      - type: custom:xplora-watch-card
+        entity: ALARMS_ENTITY
+        title: Alarms
+      - type: custom:xplora-watch-card
+        entity: SILENTS_ENTITY
+        title: Silent times
+
+  # ---------------------------------------------------------------------------
+  # 4. Chat with the watch — read incoming messages and reply from HA.
+  # ---------------------------------------------------------------------------
+  - title: Chat
+    path: chat
+    icon: mdi:message-text
+    cards:
+      - type: custom:xplora-watch-chat-card
+        entity: MESSAGE_ENTITY
+        title: Messages
+
+  # ---------------------------------------------------------------------------
+  # 5. Manual controls: refresh the location, re-read alarms/silent times,
+  #    and (only if you enabled those entities) restart or power off the watch.
+  # ---------------------------------------------------------------------------
+  - title: Controls
+    path: controls
+    icon: mdi:cog
+    cards:
+      - type: custom:xplora-watch-actions-card
+        title: Watch controls
+        entities:
+          - BUTTON_ENTITY
+          # - button.xplora_<child>_watch_refresh_functions_<account>
+          # - button.xplora_<child>_watch_reboot_<account>
+          # - button.xplora_<child>_watch_shutdown_<account>

@@ -14,7 +14,10 @@ pytest-cov==7.1.0
 aioresponses==0.7.9
 
 # Home Assistant testing dependencies
-pytest-homeassistant-custom-component==0.13.345
+# 0.13.366 is the release that pins homeassistant==2026.9.3, the version this integration requires
+# (hacs.json / requirements-ha.txt). Bump this together with the minimum HA version -- the package
+# hard-pins an exact homeassistant version, so a mismatch makes the suite fail to resolve.
+pytest-homeassistant-custom-component==0.13.366
 
 # Required by HA's `ffmpeg` integration (an `after_dependency`): importing get_ffmpeg_manager in
 # helper.py pulls in `haffmpeg`. HA installs this on demand in production, but the test env installs

@@ -18,10 +18,14 @@ from tests.xplora_watch.fixtures.graphql_payloads import DEFAULT_ACCOUNT_NAME, D
 
 
 def _section(result, section_key: str) -> dict:
-    """Return the inner field->selector mapping of one section of the options form."""
+    """Return the inner field->selector mapping of one section of the options form.
+
+    A section is `section(vol.Schema({...}))`, so it takes two unwraps to reach the field mapping:
+    `section.schema` is the inner `vol.Schema`, and *its* `.schema` is the marker -> selector dict.
+    """
     for key, value in result["data_schema"].schema.items():
         if getattr(key, "schema", key) == section_key:
-            return value.schema
+            return value.schema.schema
     raise AssertionError(f"section {section_key!r} missing from {[getattr(k, 'schema', k) for k in result['data_schema'].schema]}")
 
 

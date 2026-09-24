@@ -294,5 +294,9 @@ async def test_demo_entry_sets_up_network_free_and_creates_its_watch_device(hass
         await hass.async_block_till_done()
 
     assert result is True  # setup completed offline
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, f"{email}_{wuid}")})
+    # `async_get_device_by_identifier` (not the `async_get_device` that HA deprecated in 2026.8 and
+    # removes in 2027.8): identifiers are unique per config entry now, so the entry id is part of the
+    # lookup. The deprecated form is reported through `report_usage`, and because this call is made
+    # from test code -- with no integration frame on the stack -- it escalates to a RuntimeError.
+    device = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, f"{email}_{wuid}"), entry.entry_id)
     assert device is not None  # the watch device the service `device_id` picker lists

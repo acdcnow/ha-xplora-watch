@@ -46,9 +46,9 @@ from .helper import is_distance_in_radius
 
 _LOGGER = logging.getLogger(__name__)
 
-# Charging and online state are enabled by default (core watch status); safezone is registered
-# but disabled-by-default (it depends on home/safezone configuration to be meaningful) so it can
-# be enabled per entity in the UI instead of via an options-flow type selection.
+# All three are enabled by default: charging and online state are core watch status, and the
+# safezone sensor rides the same `deviceList` payload (no extra API call). Each can be disabled
+# per entity in the UI.
 BINARY_SENSOR_TYPES: tuple[BinarySensorEntityDescription, ...] = (
     BinarySensorEntityDescription(
         key=BINARY_SENSOR_CHARGING,
@@ -59,7 +59,6 @@ BINARY_SENSOR_TYPES: tuple[BinarySensorEntityDescription, ...] = (
         key=BINARY_SENSOR_SAFEZONE,
         device_class=BinarySensorDeviceClass.SAFETY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     BinarySensorEntityDescription(
         key=BINARY_SENSOR_STATE,
@@ -127,14 +126,15 @@ class XploraBinarySensor(XploraBaseEntity, BinarySensorEntity):
             return
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        self._attr_name: str = description.key.replace("_", " ").title()
+        # Translated name (`entity.binary_sensor.<key>.name`); the entity_id below is unchanged.
+        self._attr_translation_key = description.key
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
 
         # unique_id is kept unchanged to preserve existing entities' history/customizations.
         self._attr_unique_id = (
             f"{ward.get(CONF_NAME)}_{ATTR_WATCH}_{description.key}_{wuid}_{coordinator.user_id}".replace(" ", "_").replace("-", "_").lower()
         )
-        _LOGGER.debug("Updating binary_sensor: %s | Typ: %s | Watch_ID ...%s", self._attr_name, description.key, wuid[25:])
+        _LOGGER.debug("Updating binary_sensor: %s | Typ: %s | Watch_ID ...%s", description.key, description.key, wuid[25:])
 
     @property
     def is_on(self) -> bool | None:

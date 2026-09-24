@@ -107,6 +107,31 @@ CONF_HOME_SAFEZONE: Final = "home_is_safezone"
 CONF_HOME_LATITUDE: Final = "home_latitude"
 CONF_HOME_LONGITUDE: Final = "home_longitude"
 CONF_HOME_RADIUS: Final = "home_radius"
+# Fallback home radius (metres) for the options form when the `home` zone is missing or has been
+# renamed. Matches Home Assistant's own default zone radius, so `home_is_safezone` still works
+# out of the box instead of the dialog refusing to open (see `config_flow.flatten_sections`).
+DEFAULT_HOME_RADIUS: Final = 100
+
+# --- Sectioned options form -------------------------------------------------------------------
+# Keys of the collapsible sections the options flow is grouped into (HA's `data_entry_flow.section`
+# pattern). Each key is BOTH the top-level schema key AND the translation path
+# (`options.step.init.sections.<key>.{name,data,data_description}`), so these strings must stay
+# identical to `strings.json` / `translations/*.json` -- a mismatch silently shows raw field keys.
+# `OPTIONS_SECTIONS` is what `config_flow.flatten_sections` matches a submitted key against.
+SECTION_WATCHES: Final = "watches"
+SECTION_POLLING: Final = "polling"
+SECTION_LOCATION: Final = "location"
+SECTION_CHAT: Final = "chat"
+SECTION_HISTORY: Final = "history"
+SECTION_GENERAL: Final = "general"
+OPTIONS_SECTIONS: Final[tuple[str, ...]] = (
+    SECTION_WATCHES,
+    SECTION_POLLING,
+    SECTION_LOCATION,
+    SECTION_CHAT,
+    SECTION_HISTORY,
+    SECTION_GENERAL,
+)
 CONF_AUTO_MARK_READ: Final = "auto_mark_read"
 CONF_MAPS: Final = "maps"
 CONF_MESSAGE: Final = "message"

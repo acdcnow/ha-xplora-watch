@@ -1,14 +1,72 @@
 {
   "entity": {
+    "binary_sensor": {
+      "charging": {
+        "name": "En charge"
+      },
+      "safezone": {
+        "name": "Hors de la zone sûre"
+      },
+      "state": {
+        "name": "En ligne"
+      }
+    },
     "button": {
+      "reboot": {
+        "name": "Redémarrer la montre"
+      },
       "refresh_functions": {
         "name": "Actualiser alarmes et plages silencieuses"
+      },
+      "shutdown": {
+        "name": "Éteindre la montre"
+      },
+      "update": {
+        "name": "Mettre à jour la position"
+      }
+    },
+    "device_tracker": {
+      "tracker": {
+        "name": "Position"
       }
     },
     "sensor": {
+      "alarms": {
+        "name": "Alarmes"
+      },
+      "battery": {
+        "name": "Batterie"
+      },
       "current_safezone": {
         "name": "Zone de sécurité actuelle"
+      },
+      "distance": {
+        "name": "Distance de la maison"
+      },
+      "last_update": {
+        "name": "Dernière mise à jour"
+      },
+      "location_history": {
+        "name": "Historique de position"
+      },
+      "message": {
+        "name": "Messages non lus"
+      },
+      "silents": {
+        "name": "Plages silencieuses"
+      },
+      "step_day": {
+        "name": "Pas aujourd'hui"
+      },
+      "xcoin": {
+        "name": "XCoins"
       }
+    }
+  },
+  "issues": {
+    "login_failed": {
+      "title": "HA Xplora® Watch n'a pas pu se connecter",
+      "description": "Home Assistant n'a pas pu se connecter au compte Xplora® **{account}** ({error}).\n\nCela signifie généralement que le mot de passe a changé, que le compte a été déplacé ou que l'adresse n'existe plus. Ouvrez **Paramètres → Appareils et services → HA Xplora® Watch** et utilisez **Reconfigurer** sur ce compte pour saisir les nouveaux identifiants — inutile de supprimer et de rajouter l'intégration : vos entités, leur historique enregistré et l'archive de positions sont conservés."
     }
   },
   "exceptions": {
@@ -28,6 +86,7 @@
   "config": {
     "abort": {
       "already_configured": "L'intégration a déjà été configurée",
+      "reconfigure_successful": "Identifiants mis à jour. Home Assistant recharge l'intégration.",
       "single_instance_allowed": "Déjà configuré. Une seule configuration possible."
     },
     "create_entry": {
@@ -78,6 +137,22 @@
         },
         "description": "Donnez à ce compte un nom court pour le distinguer des autres comptes liés à la même montre.",
         "title": "Alias du compte"
+      },
+      "reconfigure": {
+        "data": {
+          "country_code": "Code du pays (+49)",
+          "email": "Adresse e-mail",
+          "language": "Langue",
+          "password": "Mot de passe",
+          "phonenumber": "numéro de téléphone sans le code du pays",
+          "timezone": "Fuseau horaire",
+          "userlang": "Langue de la montre (fr)"
+        },
+        "data_description": {
+          "password": "Votre mot de passe actuel n'est jamais affiché ici. Saisissez le nouveau pour le remplacer."
+        },
+        "description": "Mettre à jour les identifiants de ce compte. Vos entités, leur historique enregistré et l'archive de positions sont conservés.",
+        "title": "Mettre à jour les données du compte Xplora®"
       }
     }
   },
@@ -90,34 +165,88 @@
     },
     "step": {
       "init": {
-        "data": {
-          "auto_fetch_history": "Récupérer automatiquement l'historique de position d'hier",
-          "auto_mark_read": "Marquer les messages comme lus lors de l'interrogation",
-          "history_retention_days": "Conservation de l'historique de position (jours)",
-          "home_is_safezone": "La maison est une zone sûre",
-          "home_latitude": "Latitude de la maison",
-          "home_longitude": "Longitude de la maison",
-          "home_radius": "Rayon de la maison",
-          "language": "Langue",
-          "maps": "Cartes",
-          "message": "Nombre de messages",
-          "opencage_apikey": "Clé API OpenCage",
-          "refresh_on_card_render": "Actualiser les données à l'affichage des cartes du tableau de bord",
-          "remove_message": "afficher les messages supprimés ?",
-          "scan_interval": "Intervalle de mise à jour (Désactivé arrête l'interrogation)",
-          "scan_interval_functions": "Intervalle de mise à jour des fonctions (alarmes, plages silencieuses, zones sûres)",
-          "watches": "Montres",
-          "account_alias": "Alias du compte"
-        },
-        "data_description": {
-          "history_retention_days": "Durée de conservation des positions passées par le capteur d'historique de position (optionnel). Home Assistant en conserve bien plus que la fenêtre d'environ 3 jours de l'application Xplora®. N'a d'effet qu'une fois le capteur d'historique de position activé.",
-          "scan_interval": "Fréquence à laquelle Home Assistant interroge les montres pour la batterie, la position et l'état. Désactivé (par défaut) arrête l'interrogation automatique — les mises à jour proviennent alors uniquement du service xplora_watch.see ou d'un appui sur le bouton Mettre à jour.",
-          "scan_interval_functions": "Fréquence à laquelle les alarmes, plages silencieuses et zones sûres (qui changent rarement) sont récupérées. Chacune nécessite une requête distincte par montre, c'est pourquoi elles sont Désactivées par défaut afin de limiter le trafic. Choisissez « À chaque interrogation » pour les actualiser à chaque mise à jour, ou récupérez-les à la demande via le service xplora_watch.refresh_functions ou en touchant les tuiles de comptage sur la carte.",
-          "auto_fetch_history": "Lorsque activé, l'intégration récupère l'historique de position de la veille à 01:00 (heure locale) — uniquement si les données de ce jour ne sont pas déjà en cache. Pratique pour constituer une archive de positions sans créer d'automatisation utilisant xplora_watch.fetch_history.",
-          "refresh_on_card_render": "Lorsque activé, les cartes personnalisées du tableau de bord demandent des données fraîches dès leur affichage (alarmes et plages silencieuses, position et messages). Désactivé par défaut afin de limiter le trafic ; si plusieurs cartes d'une vue affichent la même montre, chaque jeu de données n'est actualisé qu'une seule fois.",
-          "account_alias": "Renomme l'appareil montre de ce compte au prochain rechargement (par ex. « Dana Watch (Maman) »). Les identifiants d'entités existants conservent leur nom d'origine, afin que les automatisations et tableaux de bord qui les référencent continuent de fonctionner."
-        },
-        "title": "paramètres supplémentaires pour HA Xplora® Watch"
+        "description": "Tout sur cette page est facultatif. L'interrogation est désactivée par défaut : Home Assistant ne contacte Xplora® que lorsque vous le lui demandez.",
+        "title": "Paramètres de HA Xplora® Watch",
+        "sections": {
+          "watches": {
+            "name": "Montres et compte",
+            "data": {
+              "account_alias": "Alias du compte",
+              "watches": "Montres"
+            },
+            "data_description": {
+              "account_alias": "Renomme l'appareil montre de ce compte au prochain rechargement (par ex. « Dana Watch (Maman) »). Les identifiants d'entités existants conservent leur nom d'origine, afin que les automatisations et tableaux de bord qui les référencent continuent de fonctionner.",
+              "watches": "Pour quelles montres de ce compte Home Assistant crée un appareil et ses entités. Une montre désélectionnée conserve ses entités, mais elles ne se mettent plus à jour."
+            }
+          },
+          "polling": {
+            "name": "Mise à jour des données",
+            "data": {
+              "refresh_on_card_render": "Actualiser les données à l'affichage des cartes du tableau de bord",
+              "scan_interval": "Intervalle de mise à jour (Désactivé arrête l'interrogation)",
+              "scan_interval_functions": "Intervalle de mise à jour des fonctions (alarmes, plages silencieuses, zones sûres)"
+            },
+            "data_description": {
+              "refresh_on_card_render": "Lorsque activé, les cartes personnalisées du tableau de bord demandent des données fraîches dès leur affichage (alarmes et plages silencieuses, position et messages). Désactivé par défaut afin de limiter le trafic ; si plusieurs cartes d'une vue affichent la même montre, chaque jeu de données n'est actualisé qu'une seule fois.",
+              "scan_interval": "Fréquence à laquelle Home Assistant interroge les montres pour la batterie, la position et l'état. Désactivé (par défaut) arrête l'interrogation automatique — les mises à jour proviennent alors uniquement du service xplora_watch.see ou d'un appui sur le bouton Mettre à jour la position.",
+              "scan_interval_functions": "Fréquence à laquelle les alarmes, plages silencieuses et zones sûres (qui changent rarement) sont récupérées. Chacune nécessite une requête distincte par montre, c'est pourquoi elles sont Désactivées par défaut afin de limiter le trafic. Choisissez « À chaque interrogation » pour les actualiser à chaque mise à jour, ou récupérez-les à la demande via le service xplora_watch.refresh_functions ou en touchant les tuiles de comptage sur la carte."
+            }
+          },
+          "location": {
+            "name": "Position et cartes",
+            "data": {
+              "home_is_safezone": "La maison est une zone sûre",
+              "home_latitude": "Latitude de la maison",
+              "home_longitude": "Longitude de la maison",
+              "home_radius": "Rayon de la maison",
+              "maps": "Cartes",
+              "opencage_apikey": "Clé API OpenCage"
+            },
+            "data_description": {
+              "home_is_safezone": "Lorsque activé, le capteur « Hors de la zone sûre » considère aussi la zone maison de Home Assistant (latitude/longitude/rayon ci-dessous) comme une zone sûre, en plus des zones configurées dans l'application Xplora®.",
+              "home_latitude": "Utilisé uniquement par le capteur « Hors de la zone sûre » lorsque « La maison est une zone sûre » est activé. Par défaut, la zone maison de Home Assistant ; modifiez-la ici si la zone sûre de la montre est ailleurs.",
+              "home_longitude": "Utilisé uniquement par le capteur « Hors de la zone sûre » lorsque « La maison est une zone sûre » est activé.",
+              "home_radius": "Rayon en mètres de la zone maison utilisée par le capteur « Hors de la zone sûre ».",
+              "maps": "Quel service de géocodage convertit une position en adresse. « OpenStreetMap » est gratuit et sans clé ; « OpenCage » nécessite la clé API ci-dessous et est plus précis.",
+              "opencage_apikey": "Nécessaire uniquement lorsque Cartes est réglé sur OpenCage. Obtenez une clé gratuite sur opencagedata.com."
+            }
+          },
+          "chat": {
+            "name": "Messages",
+            "data": {
+              "auto_mark_read": "Marquer les messages comme lus lors de l'interrogation",
+              "message": "Nombre de messages",
+              "remove_message": "afficher les messages supprimés ?"
+            },
+            "data_description": {
+              "auto_mark_read": "Lorsque activé, les messages récupérés pour la carte de discussion sont marqués comme lus sur la montre. Laissez désactivé si l'enfant doit toujours les voir comme non lus sur la montre.",
+              "message": "Combien de messages récents sont conservés par montre. Des valeurs plus élevées donnent plus d'historique dans la carte de discussion et un attribut plus volumineux sur le capteur des messages non lus.",
+              "remove_message": "Lorsque activé, les messages supprimés dans l'application Xplora® restent affichés dans la carte de discussion."
+            }
+          },
+          "history": {
+            "name": "Historique de position",
+            "data": {
+              "auto_fetch_history": "Récupérer automatiquement l'historique de position d'hier",
+              "history_retention_days": "Conservation de l'historique de position (jours)"
+            },
+            "data_description": {
+              "auto_fetch_history": "Lorsque activé, l'intégration récupère l'historique de position de la veille à 01:00 (heure locale) — uniquement si les données de ce jour ne sont pas déjà en cache. Pratique pour constituer une archive de positions sans créer d'automatisation utilisant xplora_watch.fetch_history.",
+              "history_retention_days": "Durée de conservation des positions passées par le capteur d'historique de position. Home Assistant en conserve bien plus que la fenêtre d'environ 3 jours de l'application Xplora®."
+            }
+          },
+          "general": {
+            "name": "Compte et langue",
+            "data": {
+              "language": "Langue",
+              "signin_typ": "Méthode de connexion"
+            },
+            "data_description": {
+              "signin_typ": "Information uniquement — c'est ainsi que ce compte se connecte. Pour passer d'une connexion par e-mail à une connexion par téléphone, utilisez Reconfigurer sur l'entrée de l'intégration.",
+              "language": "Langue des boîtes de dialogue de cette intégration, des noms de jours de ses services et de ses messages de journal."
+            }
+          }
+        }
       }
     }
   }

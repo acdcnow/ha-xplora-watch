@@ -63,35 +63,37 @@ async def test_async_setup_entry_creates_all_sensors(
     assert history_keys == {SENSOR_LOCATION_HISTORY}
 
 
-async def test_only_battery_enabled_by_default(
+async def test_all_sensors_enabled_by_default(
     hass: HomeAssistant,
     mock_config_entry_phone: MockConfigEntry,
     coordinator_with_data: XploraDataUpdateCoordinator,
 ) -> None:
-    """Battery is enabled by default; step/xcoin/message/distance are disabled-by-default.
+    """Every sensor is enabled by default, so the integration is useful out of the box.
 
-    All sensors are now always created (gated only by CONF_WATCHES); which ones show up in the
-    UI is controlled per entity via `entity_registry_enabled_default`, not a type selection.
+    All sensors are always created (gated only by CONF_WATCHES); which ones show up in the UI is
+    controlled per entity via `entity_registry_enabled_default`, not a type selection. The
+    integration enables them all: the ones whose data rides the regular `deviceList`/locate refresh
+    cost nothing, and the two list sensors + the history sensor cost exactly one seed fetch per
+    watch (the "functions"/history requests are never re-polled by the regular poll).
     """
     hass.data.setdefault(DOMAIN, {})[mock_config_entry_phone.entry_id] = coordinator_with_data
     captured, capture_entities = _capture()
 
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
-    enabled = {e.entity_description.key for e in captured if e.entity_registry_enabled_default}
     disabled = {e.entity_description.key for e in captured if not e.entity_registry_enabled_default}
-    # Battery and the last-update status are enabled by default; the rest (incl. location history)
-    # are opt-in.
-    assert enabled == {SENSOR_BATTERY, SENSOR_LAST_UPDATE}
-    assert disabled == {
+    assert disabled == set()
+    assert {e.entity_description.key for e in captured} == {
+        SENSOR_BATTERY,
         SENSOR_STEP_DAY,
         SENSOR_XCOIN,
         SENSOR_MESSAGE,
         SENSOR_DISTANCE,
+        SENSOR_CURRENT_SAFEZONE,
+        SENSOR_LAST_UPDATE,
         SENSOR_ALARMS,
         SENSOR_SILENTS,
         SENSOR_LOCATION_HISTORY,
-        SENSOR_CURRENT_SAFEZONE,
     }
 
 

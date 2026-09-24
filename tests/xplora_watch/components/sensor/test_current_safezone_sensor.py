@@ -100,12 +100,14 @@ async def test_label_ignores_home_is_safezone_while_binary_sensor_honors_it(
     assert label_sensor.native_value is None  # ...but the label stays the watch's own report
 
 
-async def test_current_safezone_is_diagnostic_disabled_by_default_and_translated(
+async def test_current_safezone_is_diagnostic_enabled_by_default_and_translated(
     hass: HomeAssistant, mock_config_entry_phone, coordinator_with_data: XploraDataUpdateCoordinator
 ) -> None:
     description = _description()
     assert description.entity_category == EntityCategory.DIAGNOSTIC
-    assert description.entity_registry_enabled_default is False
+    # The watch reports the safezone label on every location payload, so the sensor costs no extra
+    # API request and is enabled out of the box like the rest of the default set.
+    assert description.entity_registry_enabled_default is True
 
     sensor = _make_sensor(hass, mock_config_entry_phone, coordinator_with_data)
     # Named via translations (entity.sensor.current_safezone.name), not a code-derived title.

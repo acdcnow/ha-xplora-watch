@@ -466,6 +466,14 @@ class XploraDataUpdateCoordinator(DataUpdateCoordinator):
         """
         return self.is_admin.get(wuid) is False
 
+    def functions_fetch_times(self) -> dict[str, datetime]:
+        """Read-only copy of the per-watch "functions" (alarms/silent/safezone) fetch timestamps.
+
+        Public accessor for the diagnostics download, so support data doesn't have to reach into a
+        private cache. Returned as a copy so a caller can't mutate the coordinator's state.
+        """
+        return dict(self._last_functions_fetch)
+
     def _account_label(self) -> str:
         """A human-recognizable account identifier for logs (email / phone), never the password."""
         data = self._entry.data

@@ -52,9 +52,11 @@ async def test_battery_naming_and_unchanged_unique_id(
     sensor = _make_sensor(hass, mock_config_entry_phone, coordinator_with_data, SENSOR_BATTERY)
 
     # Role-only name (device supplies "Kid One Watch (Parent Name)") -> friendly
-    # "Kid One Watch (Parent Name) Battery".
+    # "Kid One Watch (Parent Name) Battery". The name itself is translated
+    # (`entity.sensor.battery.name`), so it follows the user's HA language.
     assert sensor._attr_has_entity_name is True
-    assert sensor._attr_name == "Battery"
+    assert sensor._attr_translation_key == SENSOR_BATTERY
+    assert getattr(sensor, "_attr_name", None) is None
     # entity_id is set directly (not via suggested_object_id) so it is NOT device-name-prefixed;
     # the trailing account-token segment ("parent_name") differentiates accounts.
     assert sensor.entity_id == "sensor.xplora_kid_one_watch_battery_parent_name"

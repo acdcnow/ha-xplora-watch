@@ -67,13 +67,18 @@ async def test_history_sensor_points_excluded_from_recorder(
 async def test_history_sensor_naming_and_unique_id(
     hass: HomeAssistant, mock_config_entry_phone, coordinator_with_data: XploraDataUpdateCoordinator
 ) -> None:
-    """Stable, disabled-by-default entity whose unique_id carries the history marker."""
+    """Stable, enabled-by-default entity whose unique_id carries the history marker."""
     sensor = _make_sensor(hass, mock_config_entry_phone, coordinator_with_data)
     assert sensor._attr_has_entity_name is True
-    assert sensor._attr_name == "Location History"
+    # The UI name comes from translations (`entity.sensor.location_history.name`), not a
+    # code-derived English title -- so it follows the user's HA language.
+    assert sensor._attr_translation_key == "location_history"
+    assert getattr(sensor, "_attr_name", None) is None
     assert sensor.entity_id.startswith("sensor.")
     # Role marker, then the trailing account token ("parent_name", the default display name).
     assert sensor.entity_id.endswith("_location_history_parent_name")
     assert "_location_history_" in sensor._attr_unique_id
     assert sensor._attr_unique_id == sensor._attr_unique_id.lower()
-    assert HISTORY_SENSOR_TYPE.entity_registry_enabled_default is False
+    # Enabled by default: the LocHistory request it gates is fetched only on an explicit refresh,
+    # never by the regular poll, so an out-of-the-box install adds no recurring traffic.
+    assert HISTORY_SENSOR_TYPE.entity_registry_enabled_default is True

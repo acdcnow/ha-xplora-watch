@@ -11,6 +11,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.xplora_watch.const import (
     CONF_ACCOUNT_ALIAS,
     CONF_AUTO_FETCH_HISTORY,
+    CONF_AUTO_MARK_READ,
     CONF_HISTORY_RETENTION_DAYS,
     CONF_HOME_LATITUDE,
     CONF_HOME_LONGITUDE,
@@ -19,17 +20,59 @@ from custom_components.xplora_watch.const import (
     CONF_MAPS,
     CONF_MESSAGE,
     CONF_OPENCAGE_APIKEY,
+    CONF_REFRESH_ON_CARD_RENDER,
     CONF_REMOVE_MESSAGE,
+    CONF_SCAN_INTERVAL_FUNCTIONS,
     CONF_SIGNIN_TYP,
     CONF_WATCHES,
     HISTORY_RETENTION_DAYS_MAX,
     MAPS,
+    OPTIONS_SECTIONS,
+    SECTION_CHAT,
+    SECTION_GENERAL,
+    SECTION_HISTORY,
+    SECTION_LOCATION,
+    SECTION_POLLING,
+    SECTION_WATCHES,
 )
 from tests.xplora_watch.fixtures.graphql_payloads import DEFAULT_WUID
 
+# Which section each option lives in, mirroring `XploraOptionsFlowHandler.get_options`. A sectioned
+# form submits its values **nested** under the section key, so the tests have to build that shape --
+# and the flow manager validates the payload against the schema before the step ever runs, so a flat
+# payload would be rejected as "extra keys not allowed" instead of reaching the flow.
+_FIELD_SECTIONS: dict[str, str] = {
+    CONF_WATCHES: SECTION_WATCHES,
+    CONF_ACCOUNT_ALIAS: SECTION_WATCHES,
+    CONF_SCAN_INTERVAL: SECTION_POLLING,
+    CONF_SCAN_INTERVAL_FUNCTIONS: SECTION_POLLING,
+    CONF_REFRESH_ON_CARD_RENDER: SECTION_POLLING,
+    CONF_HOME_SAFEZONE: SECTION_LOCATION,
+    CONF_HOME_LATITUDE: SECTION_LOCATION,
+    CONF_HOME_LONGITUDE: SECTION_LOCATION,
+    CONF_HOME_RADIUS: SECTION_LOCATION,
+    CONF_MAPS: SECTION_LOCATION,
+    CONF_OPENCAGE_APIKEY: SECTION_LOCATION,
+    CONF_MESSAGE: SECTION_CHAT,
+    CONF_REMOVE_MESSAGE: SECTION_CHAT,
+    CONF_AUTO_MARK_READ: SECTION_CHAT,
+    CONF_AUTO_FETCH_HISTORY: SECTION_HISTORY,
+    CONF_HISTORY_RETENTION_DAYS: SECTION_HISTORY,
+    CONF_LANGUAGE: SECTION_GENERAL,
+    CONF_SIGNIN_TYP: SECTION_GENERAL,
+}
+
+
+def _nest(flat: dict[str, Any]) -> dict[str, Any]:
+    """Group a flat field->value mapping into the sectioned shape the form submits."""
+    nested: dict[str, Any] = {name: {} for name in OPTIONS_SECTIONS}
+    for key, value in flat.items():
+        nested[_FIELD_SECTIONS[key]][key] = value
+    return nested
+
 
 def _base_submit_input(**overrides: Any) -> dict[str, Any]:
-    user_input: dict[str, Any] = {
+    flat: dict[str, Any] = {
         CONF_SIGNIN_TYP: "Signed up with a phone number",
         CONF_WATCHES: [DEFAULT_WUID],
         CONF_LANGUAGE: "en",
@@ -37,15 +80,20 @@ def _base_submit_input(**overrides: Any) -> dict[str, Any]:
         CONF_OPENCAGE_APIKEY: "",
         # Scan interval is now a preset SelectSelector; the UI hands back the seconds as a string.
         CONF_SCAN_INTERVAL: "1800",
+        CONF_SCAN_INTERVAL_FUNCTIONS: "0",
+        CONF_REFRESH_ON_CARD_RENDER: False,
         CONF_HOME_SAFEZONE: "off",
         CONF_HOME_LATITUDE: 52.5200,
         CONF_HOME_LONGITUDE: 13.4050,
         CONF_HOME_RADIUS: 100,
         CONF_MESSAGE: 10,
         CONF_REMOVE_MESSAGE: False,
+        CONF_AUTO_MARK_READ: False,
+        CONF_AUTO_FETCH_HISTORY: False,
+        CONF_HISTORY_RETENTION_DAYS: 14,
     }
-    user_input.update(overrides)
-    return user_input
+    flat.update(overrides)
+    return _nest(flat)
 
 
 async def test_submit_happy_path_creates_options_entry(

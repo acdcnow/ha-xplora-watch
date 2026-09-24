@@ -44,14 +44,14 @@ async def test_async_setup_entry_creates_all_binary_sensors(
     assert keys == {BINARY_SENSOR_CHARGING, BINARY_SENSOR_SAFEZONE, BINARY_SENSOR_STATE}
 
 
-async def test_charging_and_state_enabled_safezone_disabled_by_default(
+async def test_all_binary_sensors_enabled_by_default(
     hass: HomeAssistant,
     mock_config_entry_phone: MockConfigEntry,
     coordinator_with_data: XploraDataUpdateCoordinator,
 ) -> None:
-    """Charging + online-state are enabled by default; safezone is disabled-by-default.
+    """All three binary sensors are enabled by default -- none costs an extra API request.
 
-    All binary sensors are now always created (gated only by CONF_WATCHES); visibility is per
+    All binary sensors are always created (gated only by CONF_WATCHES); visibility is per
     entity via `entity_registry_enabled_default`, not a type selection.
     """
     hass.data.setdefault(DOMAIN, {})[mock_config_entry_phone.entry_id] = coordinator_with_data
@@ -59,10 +59,13 @@ async def test_charging_and_state_enabled_safezone_disabled_by_default(
 
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
-    enabled = {e.entity_description.key for e in captured if e.entity_registry_enabled_default}
     disabled = {e.entity_description.key for e in captured if not e.entity_registry_enabled_default}
-    assert enabled == {BINARY_SENSOR_CHARGING, BINARY_SENSOR_STATE}
-    assert disabled == {BINARY_SENSOR_SAFEZONE}
+    assert disabled == set()
+    assert {e.entity_description.key for e in captured} == {
+        BINARY_SENSOR_CHARGING,
+        BINARY_SENSOR_SAFEZONE,
+        BINARY_SENSOR_STATE,
+    }
 
 
 async def test_async_setup_entry_filters_out_watch_not_in_conf_watches(

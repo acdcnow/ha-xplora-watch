@@ -51,9 +51,16 @@ from .helper import get_location_distance_meter, week_repeat_to_localized_days, 
 
 _LOGGER = logging.getLogger(__name__)
 
-# Battery is enabled by default (a core watch status); the rest are registered but
-# disabled-by-default so they appear in the device and can be enabled with one click,
-# rather than being hidden behind an options-flow type selection.
+# Which sensors are visible out of the box. Everything whose data already rides the regular
+# `deviceList`/locate refresh is ENABLED by default: the integration should be useful the moment it
+# is added, without the user hunting through the device page for disabled entities or hand-building
+# template sensors. The two data sets that cost an *extra* API request are enabled too, but they
+# cost exactly ONE seed fetch per watch and are never re-polled unless the user turns on the
+# "functions" poll interval -- so the ban-defense default (no recurring traffic) still holds.
+#
+# Per-entity visibility remains fully in the user's hands: every entity can be disabled, renamed
+# or customized from the entity's settings dialog, and these defaults only apply when an entity is
+# first registered (an existing install keeps whatever the user already chose).
 SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key=SENSOR_BATTERY,
@@ -66,7 +73,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         icon="mdi:run",
         native_unit_of_measurement="step",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     SensorEntityDescription(
         key=SENSOR_XCOIN,
@@ -74,21 +80,18 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         native_unit_of_measurement="💰",
         device_class=SensorDeviceClass.MONETARY,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     SensorEntityDescription(
         key=SENSOR_MESSAGE,
         icon="mdi:message",
         device_class=SensorDeviceClass.ENUM,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     SensorEntityDescription(
         key=SENSOR_DISTANCE,
         native_unit_of_measurement=UnitOfLength.METERS,
         device_class=SensorDeviceClass.DISTANCE,
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     # Watch-reported current safezone label, unknown while outside every safezone (ADR 0006). No
     # ENUM device class: safezone names are free-form user data, not a fixed options set.
@@ -96,7 +99,6 @@ SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key=SENSOR_CURRENT_SAFEZONE,
         icon="mdi:shield-home",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     # Outcome of the last refresh for this watch (ok / no_response / error). Enabled by default --
     # unlike the other optional sensors -- so the overview/controls cards can surface "did the watch
@@ -119,13 +121,11 @@ LIST_SENSOR_TYPES: tuple[SensorEntityDescription, ...] = (
         key=SENSOR_ALARMS,
         icon="mdi:alarm",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
     SensorEntityDescription(
         key=SENSOR_SILENTS,
         icon="mdi:school",
         entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
     ),
 )
 
@@ -135,13 +135,13 @@ LIST_SENSOR_DATA_KEY: dict[str, str] = {
     SENSOR_SILENTS: ATTR_SILENT,
 }
 
-# Optional, opt-in location-history sensor (one per watch). Disabled-by-default like the other
-# optional sensors; enabling it is what makes the coordinator issue the `LocHistory` request.
+# Location-history sensor (one per watch), enabled by default like the rest. Its `LocHistory`
+# request is still fetched only on an explicit refresh, never by the regular poll (see the
+# coordinator's `_HISTORY_CONSUMERS`), so enabling it out of the box adds no recurring traffic.
 HISTORY_SENSOR_TYPE: SensorEntityDescription = SensorEntityDescription(
     key=SENSOR_LOCATION_HISTORY,
     icon="mdi:map-marker-path",
     entity_category=EntityCategory.DIAGNOSTIC,
-    entity_registry_enabled_default=False,
 )
 
 
@@ -208,15 +208,13 @@ class XploraSensor(XploraBaseEntity, SensorEntity):
             return
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        # `current_safezone` is localized via translations (entity.sensor.current_safezone.name --
-        # "Current safe zone" reads better than the generic title-cased key); the other sensors
-        # keep their code-derived English names.
-        if description.key == SENSOR_CURRENT_SAFEZONE:
-            self._attr_translation_key = description.key
-            display_name = "Current safe zone"  # debug-log only; UI name comes from translations
-        else:
-            self._attr_name: str = description.key.replace("_", " ").title()
-            display_name = self._attr_name
+        # EVERY sensor names itself through translations (`entity.sensor.<key>.name`) instead of a
+        # code-derived English title, so the device page speaks the user's Home Assistant language
+        # ("Schritte", "Pasos") rather than showing "Step Day" / "Xcoin" everywhere. Only the
+        # *name* is translated: the entity_id and unique_id below are unchanged, so dashboards,
+        # automations and recorder history keep working across the upgrade.
+        self._attr_translation_key = description.key
+        display_name = description.key  # debug-log only; the UI name comes from the translations
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
 
         # unique_id is kept unchanged to preserve existing entities' history/customizations.
@@ -321,14 +319,16 @@ class XploraListSensor(XploraBaseEntity, SensorEntity):
         self._data_key = LIST_SENSOR_DATA_KEY[description.key]
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        self._attr_name = description.key.replace("_", " ").title()
+        # Translated name (`entity.sensor.alarms.name` / `...silents.name`); the entity_id below is
+        # unchanged.
+        self._attr_translation_key = description.key
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
 
         # unique_id mirrors the other sensors so history/customizations are stable across upgrades.
         self._attr_unique_id = (
             f"{ward.get(CONF_NAME)}_{ATTR_WATCH}_{description.key}_{wuid}_{coordinator.user_id}".replace(" ", "_").replace("-", "_").lower()
         )
-        _LOGGER.debug("Updating sensor: %s | Typ: %s | Watch_ID ...%s", self._attr_name, description.key, wuid[25:])
+        _LOGGER.debug("Updating sensor: %s | Typ: %s | Watch_ID ...%s", description.key, description.key, wuid[25:])
 
     def _entries(self) -> list[dict[str, Any]]:
         """Return the raw alarm / silent entries for this watch from the coordinator."""
@@ -396,13 +396,14 @@ class XploraHistorySensor(XploraBaseEntity, SensorEntity):
             return
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        self._attr_name = description.key.replace("_", " ").title()
+        # Translated name (`entity.sensor.location_history.name`); the entity_id below is unchanged.
+        self._attr_translation_key = description.key
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
         # unique_id mirrors the other sensors so history/customizations are stable across upgrades.
         self._attr_unique_id = (
             f"{ward.get(CONF_NAME)}_{ATTR_WATCH}_{description.key}_{wuid}_{coordinator.user_id}".replace(" ", "_").replace("-", "_").lower()
         )
-        _LOGGER.debug("Updating sensor: %s | Typ: %s | Watch_ID ...%s", self._attr_name, description.key, wuid[25:])
+        _LOGGER.debug("Updating sensor: %s | Typ: %s | Watch_ID ...%s", description.key, description.key, wuid[25:])
 
     def _history(self) -> dict[str, Any]:
         """Return the bounded `{points, total}` history slice for this watch from the coordinator."""

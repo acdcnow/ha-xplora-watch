@@ -88,19 +88,25 @@ async def test_setup_skips_guardian_only_buttons_for_a_contact(
     assert keys == {BUTTON_UPDATE}
 
 
-async def test_buttons_disabled_by_default(
+async def test_only_destructive_buttons_disabled_by_default(
     hass: HomeAssistant,
     mock_config_entry_phone: MockConfigEntry,
     coordinator_with_data: XploraDataUpdateCoordinator,
 ) -> None:
-    """Action buttons follow the integration convention: registered but disabled-by-default."""
+    """The safe buttons are enabled out of the box; reboot/shutdown stay opt-in.
+
+    `update` and `refresh_functions` are explicit user presses and cost nothing until pressed, so
+    they are enabled by default (the bundled controls card uses them). `reboot`/`shutdown` are
+    destructive to a child's watch, so a stray tap must not be able to power it off.
+    """
     hass.data.setdefault(DOMAIN, {})[mock_config_entry_phone.entry_id] = coordinator_with_data
     captured, capture_entities = _capture()
 
     await async_setup_entry(hass, mock_config_entry_phone, capture_entities)
 
     assert captured
-    assert all(not e.entity_registry_enabled_default for e in captured)
+    disabled = {e.entity_description.key for e in captured if not e.entity_registry_enabled_default}
+    assert disabled == {BUTTON_REBOOT, BUTTON_SHUTDOWN}
 
 
 async def test_press_update_refreshes_only_this_watch(

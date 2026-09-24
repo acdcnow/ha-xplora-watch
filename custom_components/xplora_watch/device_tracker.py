@@ -183,7 +183,8 @@ class XploraDeviceTracker(XploraBaseEntity, TrackerEntity):
         self._hass = hass
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        self._attr_name = "Tracker"
+        # Translated name (`entity.device_tracker.tracker.name`); the entity_id below is unchanged.
+        self._attr_translation_key = "tracker"
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id("tracker"))
 
         # unique_id is kept unchanged to preserve existing entities' history/customizations.

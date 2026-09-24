@@ -1,14 +1,72 @@
 {
   "entity": {
+    "binary_sensor": {
+      "charging": {
+        "name": "Ladevorgang läuft"
+      },
+      "safezone": {
+        "name": "Außerhalb der Sicherheitszone"
+      },
+      "state": {
+        "name": "Online"
+      }
+    },
     "button": {
+      "reboot": {
+        "name": "Uhr neu starten"
+      },
       "refresh_functions": {
         "name": "Alarme & Stille Zeiten aktualisieren"
+      },
+      "shutdown": {
+        "name": "Uhr ausschalten"
+      },
+      "update": {
+        "name": "Standort aktualisieren"
+      }
+    },
+    "device_tracker": {
+      "tracker": {
+        "name": "Standort"
       }
     },
     "sensor": {
+      "alarms": {
+        "name": "Alarme"
+      },
+      "battery": {
+        "name": "Akku"
+      },
       "current_safezone": {
         "name": "Aktuelle Sicherheitszone"
+      },
+      "distance": {
+        "name": "Entfernung von zu Hause"
+      },
+      "last_update": {
+        "name": "Letzte Aktualisierung"
+      },
+      "location_history": {
+        "name": "Standortverlauf"
+      },
+      "message": {
+        "name": "Ungelesene Nachrichten"
+      },
+      "silents": {
+        "name": "Stille Zeiten"
+      },
+      "step_day": {
+        "name": "Schritte heute"
+      },
+      "xcoin": {
+        "name": "XCoins"
       }
+    }
+  },
+  "issues": {
+    "login_failed": {
+      "title": "HA Xplora® Watch konnte sich nicht anmelden",
+      "description": "Home Assistant konnte sich nicht beim Xplora®-Konto **{account}** anmelden ({error}).\n\nMeist hat sich das Passwort geändert, das Konto wurde verschoben oder die Adresse existiert nicht mehr. Öffne **Einstellungen → Geräte & Dienste → HA Xplora® Watch** und nutze **Neu konfigurieren** bei diesem Konto, um die neuen Anmeldedaten einzugeben — du musst die Integration nicht löschen und neu hinzufügen, deine Entitäten, deren Aufzeichnungsverlauf und das gespeicherte Standortarchiv bleiben erhalten."
     }
   },
   "exceptions": {
@@ -28,6 +86,7 @@
   "config": {
     "abort": {
       "already_configured": "Integration wurde bereits konfiguriert",
+      "reconfigure_successful": "Anmeldedaten aktualisiert. Home Assistant lädt die Integration neu.",
       "single_instance_allowed": "Bereits konfiguriert. Nur eine einzige Konfiguration möglich."
     },
     "create_entry": {
@@ -78,6 +137,22 @@
         },
         "description": "Geben Sie diesem Konto einen kurzen Namen, damit Sie es von anderen Konten unterscheiden können, die mit derselben Uhr verknüpft sind.",
         "title": "Konto-Alias"
+      },
+      "reconfigure": {
+        "data": {
+          "country_code": "Ländercode (+49)",
+          "email": "E-Mail-Adresse",
+          "language": "Sprache",
+          "password": "Passwort",
+          "phonenumber": "Telefonnummer ohne Ländercode",
+          "timezone": "Zeitzone",
+          "userlang": "Benutzersprache (de) der Uhr"
+        },
+        "data_description": {
+          "password": "Ihr aktuelles Passwort wird hier nie angezeigt. Geben Sie das neue ein, um es zu ersetzen."
+        },
+        "description": "Anmeldedaten dieses Kontos aktualisieren. Ihre Entitäten, deren Aufzeichnungsverlauf und das gespeicherte Standortarchiv bleiben erhalten.",
+        "title": "Xplora®-Kontodaten aktualisieren"
       }
     }
   },
@@ -90,34 +165,88 @@
     },
     "step": {
       "init": {
-        "data": {
-          "auto_fetch_history": "Gestrigen Standortverlauf automatisch abrufen",
-          "auto_mark_read": "Chat-Nachrichten beim Abrufen als gelesen markieren",
-          "history_retention_days": "Aufbewahrung des Standortverlaufs (Tage)",
-          "home_is_safezone": "Home ist Sicherheitszone",
-          "home_latitude": "Home Latitude",
-          "home_longitude": "Home Longitude",
-          "home_radius": "Home Radius",
-          "language": "Sprache",
-          "maps": "Maps",
-          "message": "Anzahl der Nachrichten",
-          "opencage_apikey": "OpenCage API KEY",
-          "refresh_on_card_render": "Daten beim Anzeigen der Dashboard-Karten aktualisieren",
-          "remove_message": "gelöschte Nachrichten anzeigen?",
-          "scan_interval": "Aktualisierungsintervall (Aus deaktiviert das Abrufen)",
-          "scan_interval_functions": "Aktualisierungsintervall für Funktionen (Alarme, Stille Zeiten, Sicherheitszonen)",
-          "watches": "Uhren",
-          "account_alias": "Konto-Alias"
-        },
-        "data_description": {
-          "history_retention_days": "Wie lange der optionale Standortverlauf-Sensor vergangene Positionen speichert. Home Assistant bewahrt weit mehr auf als das ~3-Tage-Fenster der Xplora®-App. Nur relevant, sobald der Standortverlauf-Sensor aktiviert ist.",
-          "scan_interval": "Wie oft Home Assistant die Uhren nach Akku, Standort und Status abfragt. Aus (Standard) deaktiviert das automatische Abrufen — Aktualisierungen erfolgen dann nur über den Dienst xplora_watch.see oder durch Drücken der Schaltfläche „Update“.",
-          "scan_interval_functions": "Wie oft die sich selten ändernden Alarme, Stille Zeiten und Sicherheitszonen abgerufen werden. Jede erfordert eine eigene Anfrage pro Uhr, daher standardmäßig Aus, um den Datenverkehr zu minimieren. Wähle „Bei jedem Abruf“, um sie bei jeder Aktualisierung zu laden, oder rufe sie bei Bedarf über den Dienst xplora_watch.refresh_functions oder durch Tippen auf die Zähler-Kacheln der Karte ab.",
-          "auto_fetch_history": "Wenn aktiviert, ruft die Integration den Standortverlauf des Vortags täglich um 01:00 Uhr lokaler Zeit ab — nur wenn die Daten für diesen Tag noch nicht im Cache vorhanden sind. Praktisch, wenn ein wachsendes Standortarchiv gewünscht wird, ohne dafür eine eigene Automatisierung mit xplora_watch.fetch_history einzurichten.",
-          "refresh_on_card_render": "Wenn aktiviert, fordern die benutzerdefinierten Dashboard-Karten beim Anzeigen sofort frische Daten an (Alarme und Stille Zeiten, Standort und Chat). Standardmäßig Aus, um den Datenverkehr zu minimieren; zeigen mehrere Karten in einer Ansicht dieselbe Uhr, wird jeder Datensatz nur einmal aktualisiert.",
-          "account_alias": "Benennt das Uhrengerät dieses Kontos beim nächsten Neuladen um (z. B. „Dana Watch (Mama)“). Vorhandene Entitäts-IDs behalten ihren ursprünglichen Namen, sodass darauf verweisende Automationen und Dashboards weiter funktionieren."
-        },
-        "title": "weitere Einstellungen für HA Xplora® Watch"
+        "description": "Alles auf dieser Seite ist optional. Der automatische Abruf ist standardmäßig aus, Home Assistant kontaktiert Xplora® also nur, wenn Sie es anfordern.",
+        "title": "HA Xplora® Watch Einstellungen",
+        "sections": {
+          "watches": {
+            "name": "Uhren & Konto",
+            "data": {
+              "account_alias": "Konto-Alias",
+              "watches": "Uhren"
+            },
+            "data_description": {
+              "account_alias": "Benennt das Uhrengerät dieses Kontos beim nächsten Neuladen um (z. B. „Dana Watch (Mama)“). Vorhandene Entitäts-IDs behalten ihren ursprünglichen Namen, sodass darauf verweisende Automationen und Dashboards weiter funktionieren.",
+              "watches": "Für welche Uhren dieses Kontos Home Assistant ein Gerät und Entitäten anlegt. Eine abgewählte Uhr behält ihre Entitäten, aktualisiert sie aber nicht mehr."
+            }
+          },
+          "polling": {
+            "name": "Datenabruf",
+            "data": {
+              "refresh_on_card_render": "Daten beim Anzeigen der Dashboard-Karten aktualisieren",
+              "scan_interval": "Aktualisierungsintervall (Aus deaktiviert das Abrufen)",
+              "scan_interval_functions": "Aktualisierungsintervall für Funktionen (Alarme, Stille Zeiten, Sicherheitszonen)"
+            },
+            "data_description": {
+              "refresh_on_card_render": "Wenn aktiviert, fordern die benutzerdefinierten Dashboard-Karten beim Anzeigen sofort frische Daten an (Alarme und Stille Zeiten, Standort und Chat). Standardmäßig Aus, um den Datenverkehr zu minimieren; zeigen mehrere Karten in einer Ansicht dieselbe Uhr, wird jeder Datensatz nur einmal aktualisiert.",
+              "scan_interval": "Wie oft Home Assistant die Uhren nach Akku, Standort und Status abfragt. Aus (Standard) deaktiviert das automatische Abrufen — Aktualisierungen erfolgen dann nur über den Dienst xplora_watch.see oder durch Drücken der Schaltfläche „Standort aktualisieren“.",
+              "scan_interval_functions": "Wie oft die sich selten ändernden Alarme, Stillen Zeiten und Sicherheitszonen abgerufen werden. Jede erfordert eine eigene Anfrage pro Uhr, daher standardmäßig Aus, um den Datenverkehr zu minimieren. Wähle „Bei jedem Abruf“, um sie bei jeder Aktualisierung zu laden, oder rufe sie bei Bedarf über den Dienst xplora_watch.refresh_functions oder durch Tippen auf die Zähler-Kacheln der Karte ab."
+            }
+          },
+          "location": {
+            "name": "Standort & Karten",
+            "data": {
+              "home_is_safezone": "Home ist Sicherheitszone",
+              "home_latitude": "Home Latitude",
+              "home_longitude": "Home Longitude",
+              "home_radius": "Home Radius",
+              "maps": "Maps",
+              "opencage_apikey": "OpenCage API KEY"
+            },
+            "data_description": {
+              "home_is_safezone": "Wenn aktiviert, zählt der Sensor „Außerhalb der Sicherheitszone“ zusätzlich zu den in der Xplora®-App angelegten Zonen auch die Home-Zone von Home Assistant (Latitude/Longitude/Radius unten) als Sicherheitszone.",
+              "home_latitude": "Wird nur vom Sensor „Außerhalb der Sicherheitszone“ genutzt, wenn „Home ist Sicherheitszone“ aktiv ist. Standard ist die Home-Zone von Home Assistant; hier überschreiben, falls die Sicherheitszone woanders liegt.",
+              "home_longitude": "Wird nur vom Sensor „Außerhalb der Sicherheitszone“ genutzt, wenn „Home ist Sicherheitszone“ aktiv ist.",
+              "home_radius": "Radius in Metern des Home-Bereichs, den der Sensor „Außerhalb der Sicherheitszone“ verwendet.",
+              "maps": "Welcher Geocoding-Dienst eine Position in eine Adresse umwandelt. „OpenStreetMap“ ist kostenlos und ohne Schlüssel; „OpenCage“ benötigt den API-Schlüssel unten und ist genauer.",
+              "opencage_apikey": "Nur nötig, wenn Maps auf OpenCage steht. Kostenlosen Schlüssel auf opencagedata.com holen."
+            }
+          },
+          "chat": {
+            "name": "Chat-Nachrichten",
+            "data": {
+              "auto_mark_read": "Chat-Nachrichten beim Abrufen als gelesen markieren",
+              "message": "Anzahl der Nachrichten",
+              "remove_message": "gelöschte Nachrichten anzeigen?"
+            },
+            "data_description": {
+              "auto_mark_read": "Wenn aktiviert, werden für die Chat-Karte abgerufene Nachrichten auf der Uhr als gelesen markiert. Ausschalten, wenn das Kind sie auf der Uhr noch als ungelesen sehen soll.",
+              "message": "Wie viele aktuelle Chat-Nachrichten pro Uhr gespeichert werden. Größere Werte bedeuten mehr Verlauf in der Chat-Karte und ein größeres Attribut am Sensor „Ungelesene Nachrichten“.",
+              "remove_message": "Wenn aktiviert, werden in der Xplora®-App gelöschte Nachrichten in der Chat-Karte weiterhin angezeigt."
+            }
+          },
+          "history": {
+            "name": "Standortverlauf",
+            "data": {
+              "auto_fetch_history": "Gestrigen Standortverlauf automatisch abrufen",
+              "history_retention_days": "Aufbewahrung des Standortverlaufs (Tage)"
+            },
+            "data_description": {
+              "auto_fetch_history": "Wenn aktiviert, ruft die Integration den Standortverlauf des Vortags täglich um 01:00 Uhr lokaler Zeit ab — nur wenn die Daten für diesen Tag noch nicht im Cache vorhanden sind. Praktisch, wenn ein wachsendes Standortarchiv gewünscht wird, ohne dafür eine eigene Automatisierung mit xplora_watch.fetch_history einzurichten.",
+              "history_retention_days": "Wie lange der Standortverlauf-Sensor vergangene Positionen speichert. Home Assistant bewahrt weit mehr auf als das ~3-Tage-Fenster der Xplora®-App."
+            }
+          },
+          "general": {
+            "name": "Konto & Sprache",
+            "data": {
+              "language": "Sprache",
+              "signin_typ": "Anmeldeart"
+            },
+            "data_description": {
+              "signin_typ": "Nur zur Information — so meldet sich dieses Konto an. Zum Wechsel zwischen E-Mail- und Telefonanmeldung „Neu konfigurieren“ am Integrationseintrag verwenden.",
+              "language": "Sprache für die Dialoge dieser Integration, die Wochentagsnamen ihrer Dienste und ihre Log-Meldungen."
+            }
+          }
+        }
       }
     }
   }

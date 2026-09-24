@@ -1,14 +1,72 @@
 {
   "entity": {
+    "binary_sensor": {
+      "charging": {
+        "name": "Charging"
+      },
+      "safezone": {
+        "name": "Outside safe zone"
+      },
+      "state": {
+        "name": "Online"
+      }
+    },
     "button": {
+      "reboot": {
+        "name": "Restart watch"
+      },
       "refresh_functions": {
-        "name": "Refresh Alarms & Silent Times"
+        "name": "Refresh alarms & silent times"
+      },
+      "shutdown": {
+        "name": "Shut down watch"
+      },
+      "update": {
+        "name": "Update location"
+      }
+    },
+    "device_tracker": {
+      "tracker": {
+        "name": "Location"
       }
     },
     "sensor": {
+      "alarms": {
+        "name": "Alarms"
+      },
+      "battery": {
+        "name": "Battery"
+      },
       "current_safezone": {
         "name": "Current safe zone"
+      },
+      "distance": {
+        "name": "Distance from home"
+      },
+      "last_update": {
+        "name": "Last update"
+      },
+      "location_history": {
+        "name": "Location history"
+      },
+      "message": {
+        "name": "Unread messages"
+      },
+      "silents": {
+        "name": "Silent times"
+      },
+      "step_day": {
+        "name": "Steps today"
+      },
+      "xcoin": {
+        "name": "XCoins"
       }
+    }
+  },
+  "issues": {
+    "login_failed": {
+      "title": "HA Xplora® Watch could not sign in",
+      "description": "Home Assistant could not sign in to the Xplora® account **{account}** ({error}).\n\nThis usually means the password changed, the account was moved, or the address no longer exists. Open **Settings → Devices & Services → HA Xplora® Watch** and use **Reconfigure** on that account to enter the new sign-in details — you do not have to delete and re-add the integration, so your entities, their recorded history and the stored location archive are kept."
     }
   },
   "exceptions": {
@@ -29,6 +87,7 @@
     "abort": {
       "already_configured": "Integration has already been configured",
       "cannot_connect": "Connection Failed",
+      "reconfigure_successful": "Sign-in details updated. Home Assistant is reloading the integration.",
       "single_instance_allowed": "Already configured. Only one configuration possible."
     },
     "create_entry": {
@@ -79,6 +138,22 @@
         },
         "description": "Give this account a short name so you can tell it apart from other accounts linked to the same watch.",
         "title": "Account alias"
+      },
+      "reconfigure": {
+        "data": {
+          "country_code": "Countrycode (+49)",
+          "email": "E-mail address",
+          "language": "Language",
+          "password": "Password",
+          "phonenumber": "phonenumber without Countrycode",
+          "timezone": "Timezone",
+          "userlang": "Watch Language (en)"
+        },
+        "data_description": {
+          "password": "Your current password is never shown here. Type the new one to replace it."
+        },
+        "description": "Update the sign-in details for this account. Your entities, their recorded history and the stored location archive are kept.",
+        "title": "Update Xplora® account details"
       }
     }
   },
@@ -91,34 +166,88 @@
     },
     "step": {
       "init": {
-        "data": {
-          "account_alias": "Account alias",
-          "auto_fetch_history": "Automatically fetch yesterday's location history",
-          "auto_mark_read": "Mark chat messages as read while polling",
-          "history_retention_days": "Location history retention (days)",
-          "home_is_safezone": "Home is Safezone",
-          "home_latitude": "Home latitude",
-          "home_longitude": "Home longitude",
-          "home_radius": "Home radius",
-          "language": "Language",
-          "maps": "Maps",
-          "message": "Number of Messages",
-          "opencage_apikey": "OpenCage API KEY",
-          "refresh_on_card_render": "Refresh data when dashboard cards are shown",
-          "remove_message": "show deleted messages?",
-          "scan_interval": "Update interval (Off disables polling)",
-          "scan_interval_functions": "Functions update interval (alarms, silent times, safe zones)",
-          "watches": "Watches"
-        },
-        "data_description": {
-          "account_alias": "Renames this account's watch device (e.g. “Dana Watch (Mom)”) on the next reload. Existing entity ids keep their original name, so automations and dashboards that reference them keep working.",
-          "history_retention_days": "How long the optional location-history sensor keeps past positions. Home Assistant retains far more than the Xplora® app's ~3-day window. Only matters once you enable the location-history sensor.",
-          "scan_interval": "How often Home Assistant polls the watches for battery, location and status. Off (the default) disables automatic polling — updates then come only from the xplora_watch.see service or pressing the Update button.",
-          "scan_interval_functions": "How often the rarely-changing alarms, silent times and safe-zone definitions are fetched. Each needs a separate request per watch, so this is Off by default to minimise traffic. Choose 'With every poll' to refresh them on each update, or fetch them on demand with the xplora_watch.refresh_functions service or by tapping the count tiles on the card.",
-          "auto_fetch_history": "When on, the integration fetches the previous day's location track at 01:00 local time — only if that day's data is not already cached. Useful if you want a growing location archive without setting up your own automation calling xplora_watch.fetch_history daily.",
-          "refresh_on_card_render": "When on, the custom dashboard cards request fresh data as soon as they are shown (alarms and silent times, location, and chat). Off by default to minimise API traffic; when several cards in one view show the same watch, each data set is refreshed only once."
-        },
-        "title": "further settings for HA Xplora® Watch"
+        "description": "Everything on this page is optional. Polling is off by default, so Home Assistant only contacts Xplora® when you ask it to.",
+        "title": "HA Xplora® Watch settings",
+        "sections": {
+          "watches": {
+            "name": "Watches & account",
+            "data": {
+              "account_alias": "Account alias",
+              "watches": "Watches"
+            },
+            "data_description": {
+              "account_alias": "Renames this account's watch device (e.g. “Dana Watch (Mom)”) on the next reload. Existing entity ids keep their original name, so automations and dashboards that reference them keep working.",
+              "watches": "Which of this account's watches Home Assistant creates a device and entities for. A deselected watch keeps its entities, but they stop updating."
+            }
+          },
+          "polling": {
+            "name": "Data updates",
+            "data": {
+              "refresh_on_card_render": "Refresh data when dashboard cards are shown",
+              "scan_interval": "Update interval (Off disables polling)",
+              "scan_interval_functions": "Functions update interval (alarms, silent times, safe zones)"
+            },
+            "data_description": {
+              "refresh_on_card_render": "When on, the custom dashboard cards request fresh data as soon as they are shown (alarms and silent times, location, and chat). Off by default to minimise API traffic; when several cards in one view show the same watch, each data set is refreshed only once.",
+              "scan_interval": "How often Home Assistant polls the watches for battery, location and status. Off (the default) disables automatic polling — updates then come only from the xplora_watch.see service or pressing the Update location button.",
+              "scan_interval_functions": "How often the rarely-changing alarms, silent times and safe-zone definitions are fetched. Each needs a separate request per watch, so this is Off by default to minimise traffic. Choose 'With every poll' to refresh them on each update, or fetch them on demand with the xplora_watch.refresh_functions service or by tapping the count tiles on the card."
+            }
+          },
+          "location": {
+            "name": "Location & maps",
+            "data": {
+              "home_is_safezone": "Home is Safezone",
+              "home_latitude": "Home latitude",
+              "home_longitude": "Home longitude",
+              "home_radius": "Home radius",
+              "maps": "Maps",
+              "opencage_apikey": "OpenCage API KEY"
+            },
+            "data_description": {
+              "home_is_safezone": "When on, the “Outside safe zone” sensor also treats Home Assistant's home zone (latitude/longitude/radius below) as a safe zone, on top of the zones configured in the Xplora® app.",
+              "home_latitude": "Only used by the “Outside safe zone” sensor when “Home is Safezone” is on. Defaults to your Home Assistant home zone; override it here if the watch's safe zone is a different place.",
+              "home_longitude": "Only used by the “Outside safe zone” sensor when “Home is Safezone” is on.",
+              "home_radius": "Radius in metres of the home area used by the “Outside safe zone” sensor.",
+              "maps": "Which geocoding service turns a position into a street address. “OpenStreetMap” is free and keyless; “OpenCage” needs the API key below and is more precise.",
+              "opencage_apikey": "Only needed when Maps is set to OpenCage. Get a free key at opencagedata.com."
+            }
+          },
+          "chat": {
+            "name": "Chat messages",
+            "data": {
+              "auto_mark_read": "Mark chat messages as read while polling",
+              "message": "Number of Messages",
+              "remove_message": "show deleted messages?"
+            },
+            "data_description": {
+              "auto_mark_read": "When on, messages fetched for the chat card are marked as read on the watch. Leave off if the child should still see them as unread on the watch itself.",
+              "message": "How many recent chat messages are kept per watch. Larger values mean more history in the chat card and a bigger attribute on the Unread messages sensor.",
+              "remove_message": "When on, messages deleted in the Xplora® app are still shown in the chat card."
+            }
+          },
+          "history": {
+            "name": "Location history",
+            "data": {
+              "auto_fetch_history": "Automatically fetch yesterday's location history",
+              "history_retention_days": "Location history retention (days)"
+            },
+            "data_description": {
+              "auto_fetch_history": "When on, the integration fetches the previous day's location track at 01:00 local time — only if that day's data is not already cached. Useful if you want a growing location archive without setting up your own automation calling xplora_watch.fetch_history daily.",
+              "history_retention_days": "How long the location-history sensor keeps past positions. Home Assistant retains far more than the Xplora® app's ~3-day window."
+            }
+          },
+          "general": {
+            "name": "Account & language",
+            "data": {
+              "language": "Language",
+              "signin_typ": "Sign-in method"
+            },
+            "data_description": {
+              "signin_typ": "Shown for information only — it is how this account signs in. To switch between e-mail and phone sign-in, use Reconfigure on the integration entry.",
+              "language": "Language used for this integration's dialogs, its services' day names, and the log messages it writes."
+            }
+          }
+        }
       }
     }
   }

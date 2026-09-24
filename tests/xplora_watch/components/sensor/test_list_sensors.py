@@ -59,7 +59,9 @@ async def test_list_sensor_naming_and_unique_id(
 ) -> None:
     sensor = _make_sensor(hass, mock_config_entry_phone, coordinator_with_data, SENSOR_SILENTS)
     assert sensor._attr_has_entity_name is True
-    assert sensor._attr_name == "Silents"
+    # Translated name (`entity.sensor.silents.name`); no code-derived English title.
+    assert sensor._attr_translation_key == SENSOR_SILENTS
+    assert getattr(sensor, "_attr_name", None) is None
     assert sensor.entity_id.startswith("sensor.")
     # Role marker, then the trailing account token ("parent_name", the default display name).
     assert sensor.entity_id.endswith("_silents_parent_name")

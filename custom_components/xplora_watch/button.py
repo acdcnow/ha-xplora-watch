@@ -47,16 +47,15 @@ from .pyxplora_api.exception_classes import ConnectionError as XploraConnectionE
 
 _LOGGER = logging.getLogger(__name__)
 
-# All buttons are registered but disabled-by-default (like the non-core sensors): they appear on
-# the device and can be enabled with one click, rather than every watch exposing action buttons by
-# default. `reboot` carries the RESTART device class (standard restart icon/semantics); `update`
-# and `shutdown` use explicit icons.
+# What the watch device shows out of the box. The two *safe* actions are enabled -- they are
+# explicit user presses, cost nothing until pressed, and the bundled dashboard/controls card uses
+# them. `reboot` and `shutdown` stay disabled-by-default: they are destructive to a child's watch
+# and one stray press would power it off, so they must be enabled deliberately.
 BUTTON_TYPES: tuple[ButtonEntityDescription, ...] = (
     ButtonEntityDescription(
         key=BUTTON_UPDATE,
         icon="mdi:refresh",
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
     ),
     ButtonEntityDescription(
         key=BUTTON_REBOOT,
@@ -65,13 +64,11 @@ BUTTON_TYPES: tuple[ButtonEntityDescription, ...] = (
         entity_registry_enabled_default=False,
     ),
     # Re-fetches the slow-changing "functions" data (alarms, silent times, safe zones) on demand --
-    # the only control that does, since `update` only refreshes location/battery. Descriptive name
-    # ("Refresh Alarms & Silent Times") set in __init__ so the controls card reads clearly.
+    # the only control that does, since `update` only refreshes location/battery.
     ButtonEntityDescription(
         key=BUTTON_REFRESH_FUNCTIONS,
         icon="mdi:calendar-refresh",
         entity_category=EntityCategory.CONFIG,
-        entity_registry_enabled_default=False,
     ),
     ButtonEntityDescription(
         key=BUTTON_SHUTDOWN,
@@ -137,15 +134,10 @@ class XploraButton(XploraBaseEntity, ButtonEntity):
             return
 
         # has_entity_name: name only the role; the device supplies the "Kid One Watch" prefix.
-        # `refresh_functions` is localized via translations (entity.button.refresh_functions.name --
-        # a descriptive "Refresh Alarms & Silent Times", not the generic title-cased key); the other
-        # buttons keep their code-derived English names.
-        if description.key == BUTTON_REFRESH_FUNCTIONS:
-            self._attr_translation_key = description.key
-            display_name = "Refresh Alarms & Silent Times"  # debug-log only; UI name comes from translations
-        else:
-            self._attr_name = description.key.replace("_", " ").title()
-            display_name = self._attr_name
+        # Translated names (`entity.button.<key>.name`), so each button reads as what it does in the
+        # user's language ("Standort aktualisieren"); the entity_id below is unchanged.
+        self._attr_translation_key = description.key
+        display_name = description.key  # debug-log only; the UI name comes from the translations
         self.entity_id = ENTITY_ID_FORMAT.format(self.branded_object_id(description.key))
 
         # unique_id mirrors the other platforms so history/customizations are stable across upgrades.

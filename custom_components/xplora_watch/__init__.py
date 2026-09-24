@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Final
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -10,6 +11,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import aiohttp_client
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 from homeassistant.util import slugify
@@ -17,7 +19,8 @@ from homeassistant.util import slugify
 from .config import resolve_account_alias
 from .const import ATTR_WATCH, DATA_HASS_CONFIG, DOMAIN, GUARDIAN_ONLY_KEYS
 from .coordinator import XploraDataUpdateCoordinator
-from .helper import account_token, async_register_frontend_card, create_www_directory
+from .helper import account_token, async_copy_dashboard_templates, async_register_frontend_card, create_www_directory
+from .pyxplora_api.exception_classes import LoginError, PhoneOrEmailFail
 from .services import async_setup_services, async_unload_services
 from .websocket import async_register_websocket_commands
 
@@ -26,6 +29,41 @@ PLATFORMS = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.DEVICE_TRACKER, P
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+# Repair issue raised when the stored Xplora® credentials stop working (password changed, account
+# moved, address no longer exists). Without it a failed setup only shows HA's generic "Error setting
+# up entry" log line. Keyed per config entry so a multi-account setup reports *which* account needs
+# attention, and deleted as soon as the entry sets up again. Deliberately not `is_fixable`: the fix
+# is the entry's Reconfigure action, which this integration implements (`async_step_reconfigure`),
+# so no separate repair flow (and no second copy of the credential logic) is needed.
+ISSUE_LOGIN_FAILED: Final = "login_failed"
+
+
+def _login_issue_id(entry: ConfigEntry) -> str:
+    """Per-entry repair-issue id for a login failure."""
+    return f"{ISSUE_LOGIN_FAILED}_{entry.entry_id}"
+
+
+def _async_create_login_repair_issue(hass: HomeAssistant, entry: ConfigEntry, err: Exception) -> None:
+    """Raise the `login_failed` repair issue for ``entry``.
+
+    Only called for *credential* failures (`LoginError` / `PhoneOrEmailFail`), never for transient
+    ones (`RateLimitError`, connection errors) -- those clear up on their own and an issue would be
+    noise. Non-persistent, because every failed setup recreates it and a successful one clears it.
+    """
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        _login_issue_id(entry),
+        is_fixable=False,
+        is_persistent=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key=ISSUE_LOGIN_FAILED,
+        translation_placeholders={
+            "account": entry.unique_id or entry.title,
+            "error": getattr(err, "error_message", None) or str(err) or "unknown error",
+        },
+    )
 
 
 async def async_setup(hass: HomeAssistant, hass_config: ConfigType) -> bool:
@@ -58,7 +96,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator: XploraDataUpdateCoordinator = XploraDataUpdateCoordinator(hass, entry)
     session = aiohttp_client.async_get_clientsession(hass)
 
-    await coordinator.init(session=session)
+    try:
+        await coordinator.init(session=session)
+    except (LoginError, PhoneOrEmailFail) as err:
+        _async_create_login_repair_issue(hass, entry, err)
+        raise
+    # Credentials work again -> drop a repair issue left over from an earlier failed setup.
+    ir.async_delete_issue(hass, DOMAIN, _login_issue_id(entry))
 
     await _async_migrate_entries(hass, entry, coordinator.user_id)
     _async_remove_orphaned_switch_entities(hass, entry)
@@ -95,6 +139,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_setup_services(hass, entry.entry_id)
 
     await create_www_directory(hass)
+    # Drop the bundled dashboard templates into `/config/www/xplora_watch/dashboards` so they are
+    # reachable without browsing GitHub (HACS installs only the integration package). Idempotent and
+    # non-destructive -- see the helper.
+    await async_copy_dashboard_templates(hass)
     # The Lovelace card is registered in async_setup (component load) so it is available before this
     # network-gated entry setup runs -- see the note there. (async_register_frontend_card is
     # idempotent, so a missed async_setup would still be covered, but the early call is the point.)

@@ -6,6 +6,7 @@ import asyncio
 import base64
 import logging
 import os
+import shutil
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -31,6 +32,46 @@ if TYPE_CHECKING:
     from .pyxplora_api.pyxplora_api_async import PyXploraApi
 
 _LOGGER = logging.getLogger(__name__)
+
+# Folder inside the integration package holding the ready-to-paste dashboard templates (see
+# `docs/dashboards.md`), and the `/config` sub-path they are copied to on setup so they are
+# reachable from the user's own file editor / Samba share / Studio Code Server add-on.
+DASHBOARD_TEMPLATE_DIR = "dashboards"
+DASHBOARD_TEMPLATE_TARGET = f"www/{DOMAIN}/dashboards"
+
+
+async def async_copy_dashboard_templates(hass: HomeAssistant) -> None:
+    """Copy the bundled dashboard templates into `/config/www/<domain>/dashboards`.
+
+    Why a copy: HACS installs only `custom_components/<domain>`, so the templates that live there
+    (see `docs/dashboards.md`) would be invisible to a HACS user -- they would have to browse the
+    repository on GitHub to copy one. Writing them into `/config/www/<domain>/dashboards` puts them
+    where the user's File Editor, Samba share or Studio Code Server add-on can reach them, so
+    "copy and paste into a dashboard" works locally.
+
+    Non-destructive and best-effort: an already-existing file is left alone, so a user's own edits
+    to a copied template survive an update; any I/O error is logged at debug level because these
+    templates are a convenience and must never break setup.
+    """
+    source = os.path.join(os.path.dirname(__file__), DASHBOARD_TEMPLATE_DIR)
+    if not os.path.isdir(source):
+        return
+    target = hass.config.path(DASHBOARD_TEMPLATE_TARGET)
+
+    def copy() -> None:
+        os.makedirs(target, exist_ok=True)
+        for name in sorted(os.listdir(source)):
+            src = os.path.join(source, name)
+            dst = os.path.join(target, name)
+            if not os.path.isfile(src) or os.path.exists(dst):
+                continue
+            shutil.copyfile(src, dst)
+            _LOGGER.debug("Copied dashboard template %s -> %s", name, DASHBOARD_TEMPLATE_TARGET)
+
+    try:
+        await hass.async_add_executor_job(copy)
+    except OSError as err:
+        _LOGGER.debug("Could not copy the dashboard templates (ignored): %s", err)
 
 
 def watch_user_label(controller: PyXploraApi, wuid: str) -> str:
